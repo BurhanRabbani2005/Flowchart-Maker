@@ -1,6 +1,12 @@
 import type { FlowShape } from "@/types";
 
-export type AlignDirection = "left" | "right" | "top" | "bottom";
+export type AlignDirection =
+  | "left"
+  | "right"
+  | "top"
+  | "bottom"
+  | "centerH"
+  | "centerV";
 export type DistributeAxis = "horizontal" | "vertical";
 
 function selectedShapes(shapes: FlowShape[], ids: string[]): FlowShape[] {
@@ -17,33 +23,53 @@ export function alignShapes(
   if (targets.length < 2) return shapes;
 
   const idSet = new Set(ids);
-  let value: number;
 
   switch (direction) {
-    case "left":
-      value = Math.min(...targets.map((s) => s.x));
+    case "left": {
+      const value = Math.min(...targets.map((s) => s.x));
       return shapes.map((s) =>
         idSet.has(s.id) ? { ...s, x: value } : s,
       );
-    case "right":
-      value = Math.max(...targets.map((s) => s.x + s.width));
+    }
+    case "right": {
+      const value = Math.max(...targets.map((s) => s.x + s.width));
       return shapes.map((s) =>
         idSet.has(s.id) ? { ...s, x: value - s.width } : s,
       );
-    case "top":
-      value = Math.min(...targets.map((s) => s.y));
+    }
+    case "top": {
+      const value = Math.min(...targets.map((s) => s.y));
       return shapes.map((s) =>
         idSet.has(s.id) ? { ...s, y: value } : s,
       );
-    case "bottom":
-      value = Math.max(...targets.map((s) => s.y + s.height));
+    }
+    case "bottom": {
+      const value = Math.max(...targets.map((s) => s.y + s.height));
       return shapes.map((s) =>
         idSet.has(s.id) ? { ...s, y: value - s.height } : s,
       );
+    }
+    // Mid H: centers line up on a horizontal line (same center Y)
+    case "centerH": {
+      const avgCy =
+        targets.reduce((sum, s) => sum + s.y + s.height / 2, 0) /
+        targets.length;
+      return shapes.map((s) =>
+        idSet.has(s.id) ? { ...s, y: avgCy - s.height / 2 } : s,
+      );
+    }
+    // Mid V: centers line up on a vertical line (same center X)
+    case "centerV": {
+      const avgCx =
+        targets.reduce((sum, s) => sum + s.x + s.width / 2, 0) /
+        targets.length;
+      return shapes.map((s) =>
+        idSet.has(s.id) ? { ...s, x: avgCx - s.width / 2 } : s,
+      );
+    }
   }
 }
 
-/** Equalize gaps between shapes along an axis (keeps outer shapes fixed). */
 export function distributeShapes(
   shapes: FlowShape[],
   ids: string[],

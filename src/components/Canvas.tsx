@@ -1,23 +1,33 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Layer, Stage } from "react-konva";
+import { Layer, Rect, Stage } from "react-konva";
 import type Konva from "konva";
 import { ConnectionLine } from "@/components/ConnectionLine";
 import { ShapeNode } from "@/components/ShapeNode";
-import { GRID_SIZE } from "@/lib/grid";
+import {
+  idsFullyInsideRect,
+  normalizeRect,
+  type SelectionRect,
+} from "@/lib/selection";
 import type { Connection, FlowShape, ToolMode } from "@/types";
 
 interface CanvasProps {
   shapes: FlowShape[];
   connections: Connection[];
   selectedIds: string[];
+  selectedConnectionId: string | null;
   connectFromId: string | null;
   mode: ToolMode;
-  onSelect: (id: string | null) => void;
+  onSelect: (id: string | null, additive?: boolean) => void;
+  onSelectConnection: (id: string | null) => void;
   onSetSelection: (ids: string[]) => void;
   onUpdateShape: (id: string, updates: Partial<FlowShape>) => void;
+  onMoveSelected: (dx: number, dy: number) => void;
   onDeleteConnection: (id: string) => void;
+  onChangeConnection: (id: string, updates: Partial<Connection>) => void;
+  snapToGrid: boolean;
+  gridSize: number;
   stageRef: React.RefObject<Konva.Stage | null>;
 }
 
@@ -32,16 +42,41 @@ interface ViewState {
   scale: number;
 }
 
+interface MarqueeState {
+  startX: number;
+  startY: number;
+  currentX: number;
+  currentY: number;
+}
+
+function pointerToWorld(
+  stage: Konva.Stage,
+  view: ViewState,
+): { x: number; y: number } | null {
+  const pointer = stage.getPointerPosition();
+  if (!pointer) return null;
+  return {
+    x: (pointer.x - view.x) / view.scale,
+    y: (pointer.y - view.y) / view.scale,
+  };
+}
+
 export function Canvas({
   shapes,
   connections,
   selectedIds,
+  selectedConnectionId,
   connectFromId,
   mode,
   onSelect,
+  onSelectConnection,
   onSetSelection,
   onUpdateShape,
+  onMoveSelected,
   onDeleteConnection,
+  onChangeConnection,
+  snapToGrid,
+  gridSize,
   stageRef,
 }: CanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -49,13 +84,19 @@ export function Canvas({
   const [view, setView] = useState<ViewState>({ x: 0, y: 0, scale: 1 });
   const [editing, setEditing] = useState<EditingState | null>(null);
   const [isPanning, setIsPanning] = useState(false);
+  const [marquee, setMarquee] = useState<MarqueeState | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const editingId = editing?.id ?? null;
 
   const viewRef = useRef<ViewState>({ x: 0, y: 0, scale: 1 });
+  const shapesRef = useRef(shapes);
   const panningRef = useRef(false);
   const panLastRef = useRef({ x: 0, y: 0 });
   const syncFrameRef = useRef<number | null>(null);
+  const marqueeRef = useRef<MarqueeState | null>(null);
+  const didMarqueeDragRef = useRef(false);
+
+  shapesRef.current = shapes;
 
   const applyStageView = useCallback(() => {
     const stage = stageRef.current;
@@ -67,10 +108,10 @@ export function Canvas({
     }
     const container = containerRef.current;
     if (container) {
-      container.style.backgroundSize = `${GRID_SIZE * scale}px ${GRID_SIZE * scale}px`;
+      container.style.backgroundSize = `${gridSize * scale}px ${gridSize * scale}px`;
       container.style.backgroundPosition = `${x}px ${y}px`;
     }
-  }, [stageRef]);
+  }, [stageRef, gridSize]);
 
   const scheduleViewSync = useCallback(() => {
     if (syncFrameRef.current !== null) return;
@@ -132,25 +173,76 @@ export function Canvas({
     };
 
     const onWindowMouseMove = (e: MouseEvent) => {
-      if (!panningRef.current) return;
-      const dx = e.clientX - panLastRef.current.x;
-      const dy = e.clientY - panLastRef.current.y;
-      panLastRef.current = { x: e.clientX, y: e.clientY };
-      viewRef.current = {
-        ...viewRef.current,
-        x: viewRef.current.x + dx,
-        y: viewRef.current.y + dy,
+      if (panningRef.current) {
+        const dx = e.clientX - panLastRef.current.x;
+        const dy = e.clientY - panLastRef.current.y;
+        panLastRef.current = { x: e.clientX, y: e.clientY };
+        viewRef.current = {
+          ...viewRef.current,
+          x: viewRef.current.x + dx,
+          y: viewRef.current.y + dy,
+        };
+        applyStageView();
+        return;
+      }
+
+      const active = marqueeRef.current;
+      const stage = stageRef.current;
+      if (!active || !stage) return;
+
+      const container = stage.container().getBoundingClientRect();
+      const world = {
+        x: (e.clientX - container.left - viewRef.current.x) / viewRef.current.scale,
+        y: (e.clientY - container.top - viewRef.current.y) / viewRef.current.scale,
       };
-      applyStageView();
+
+      if (
+        Math.abs(world.x - active.startX) > 2 ||
+        Math.abs(world.y - active.startY) > 2
+      ) {
+        didMarqueeDragRef.current = true;
+      }
+
+      const next = {
+        ...active,
+        currentX: world.x,
+        currentY: world.y,
+      };
+      marqueeRef.current = next;
+      setMarquee(next);
+    };
+
+    const onWindowMouseUp = () => {
+      endPan();
+
+      const active = marqueeRef.current;
+      if (!active) return;
+
+      const rect = normalizeRect(
+        active.startX,
+        active.startY,
+        active.currentX,
+        active.currentY,
+      );
+
+      marqueeRef.current = null;
+      setMarquee(null);
+
+      if (didMarqueeDragRef.current && (rect.width > 2 || rect.height > 2)) {
+        onSetSelection(idsFullyInsideRect(shapesRef.current, rect));
+      } else {
+        onSelect(null);
+      }
+      didMarqueeDragRef.current = false;
     };
 
     window.addEventListener("mousemove", onWindowMouseMove);
-    window.addEventListener("mouseup", endPan);
+    window.addEventListener("mouseup", onWindowMouseUp);
     return () => {
       window.removeEventListener("mousemove", onWindowMouseMove);
-      window.removeEventListener("mouseup", endPan);
+      window.removeEventListener("mouseup", onWindowMouseUp);
     };
-  }, [applyStageView, stageRef]);
+  }, [applyStageView, onSelect, onSetSelection, stageRef]);
 
   useEffect(() => {
     return () => {
@@ -192,6 +284,32 @@ export function Canvas({
     [applyStageView, scheduleViewSync, stageRef],
   );
 
+  const setZoomScale = useCallback(
+    (nextScale: number) => {
+      const clamped = Math.min(3, Math.max(0.25, nextScale));
+      const oldScale = viewRef.current.scale;
+      const center = { x: size.width / 2, y: size.height / 2 };
+      const mousePointTo = {
+        x: (center.x - viewRef.current.x) / oldScale,
+        y: (center.y - viewRef.current.y) / oldScale,
+      };
+      viewRef.current = {
+        scale: clamped,
+        x: center.x - mousePointTo.x * clamped,
+        y: center.y - mousePointTo.y * clamped,
+      };
+      applyStageView();
+      setView({ ...viewRef.current });
+    },
+    [applyStageView, size.height, size.width],
+  );
+
+  const resetZoom = useCallback(() => {
+    viewRef.current = { x: 0, y: 0, scale: 1 };
+    applyStageView();
+    setView({ ...viewRef.current });
+  }, [applyStageView]);
+
   const startEditing = (shape: FlowShape) => {
     if (mode === "connect") return;
     onSetSelection([shape.id]);
@@ -210,6 +328,15 @@ export function Canvas({
 
   const editingShape = editingId
     ? shapes.find((s) => s.id === editingId)
+    : null;
+
+  const marqueeRect: SelectionRect | null = marquee
+    ? normalizeRect(
+        marquee.startX,
+        marquee.startY,
+        marquee.currentX,
+        marquee.currentY,
+      )
     : null;
 
   const editorStyle: React.CSSProperties | undefined =
@@ -237,6 +364,8 @@ export function Canvas({
         }
       : undefined;
 
+  const canMarquee = mode === "select" || mode === "multiselect";
+
   return (
     <div
       ref={containerRef}
@@ -244,7 +373,7 @@ export function Canvas({
       style={{
         backgroundImage:
           "radial-gradient(circle, #cbd5e1 1px, transparent 1px)",
-        backgroundSize: `${GRID_SIZE * view.scale}px ${GRID_SIZE * view.scale}px`,
+        backgroundSize: `${gridSize * view.scale}px ${gridSize * view.scale}px`,
         backgroundPosition: `${view.x}px ${view.y}px`,
         cursor: isPanning
           ? "grabbing"
@@ -265,7 +394,6 @@ export function Canvas({
           const stage = e.target.getStage();
           if (!stage) return;
 
-          // Middle mouse button pans the canvas.
           if (e.evt.button === 1) {
             e.evt.preventDefault();
             panningRef.current = true;
@@ -276,8 +404,25 @@ export function Canvas({
           }
 
           if (e.evt.button === 0 && e.target === stage) {
-            onSelect(null);
             if (editing) commitEditing();
+
+            if (canMarquee) {
+              const world = pointerToWorld(stage, viewRef.current);
+              if (world) {
+                const next = {
+                  startX: world.x,
+                  startY: world.y,
+                  currentX: world.x,
+                  currentY: world.y,
+                };
+                marqueeRef.current = next;
+                didMarqueeDragRef.current = false;
+                setMarquee(next);
+              }
+            } else {
+              onSelect(null);
+              onSelectConnection(null);
+            }
           }
         }}
         onTouchStart={(e) => {
@@ -285,20 +430,12 @@ export function Canvas({
           if (!stage) return;
           if (e.target === stage) {
             onSelect(null);
+            onSelectConnection(null);
             if (editing) commitEditing();
           }
         }}
       >
         <Layer>
-          {connections.map((connection) => (
-            <ConnectionLine
-              key={connection.id}
-              connection={connection}
-              shapes={shapes}
-              onDelete={onDeleteConnection}
-            />
-          ))}
-
           {shapes.map((shape) => {
             const isSelected = selectedIds.includes(shape.id);
             return (
@@ -315,16 +452,72 @@ export function Canvas({
                 hideText={editingId === shape.id}
                 draggable={
                   (mode === "select" || mode === "multiselect") &&
-                  editingId !== shape.id
+                  editingId !== shape.id &&
+                  !marquee
                 }
-                onSelect={() => onSelect(shape.id)}
+                onSelect={(additive) => onSelect(shape.id, additive)}
                 onChange={(updates) => onUpdateShape(shape.id, updates)}
+                onMoveSelected={onMoveSelected}
                 onEditText={() => startEditing(shape)}
+                snapToGridEnabled={snapToGrid}
+                gridSize={gridSize}
+                moveWithSelection={isSelected && selectedIds.length > 1}
               />
             );
           })}
+
+          {marqueeRect && (
+            <Rect
+              x={marqueeRect.x}
+              y={marqueeRect.y}
+              width={marqueeRect.width}
+              height={marqueeRect.height}
+              fill="rgba(15, 118, 110, 0.08)"
+              stroke="#0f766e"
+              strokeWidth={1 / viewRef.current.scale}
+              dash={[6 / viewRef.current.scale, 4 / viewRef.current.scale]}
+              listening={false}
+            />
+          )}
+
+          {connections.map((connection) => (
+            <ConnectionLine
+              key={connection.id}
+              connection={connection}
+              shapes={shapes}
+              isSelected={selectedConnectionId === connection.id}
+              onSelect={onSelectConnection}
+              onDelete={onDeleteConnection}
+              onChange={onChangeConnection}
+            />
+          ))}
         </Layer>
       </Stage>
+
+      <div className="absolute bottom-3 right-3 z-30 flex items-center gap-2 rounded-lg border border-slate-200 bg-white/95 px-3 py-2 shadow-sm">
+        <span className="text-[11px] font-medium text-slate-500">Zoom</span>
+        <input
+          type="range"
+          min={25}
+          max={300}
+          step={5}
+          value={Math.round(view.scale * 100)}
+          onChange={(e) => setZoomScale(Number(e.target.value) / 100)}
+          className="h-1.5 w-28 cursor-pointer accent-teal-700"
+          title="Zoom"
+        />
+        <span className="w-10 text-right text-xs tabular-nums text-slate-700">
+          {Math.round(view.scale * 100)}%
+        </span>
+        <button
+          type="button"
+          onClick={resetZoom}
+          className="rounded-md border border-slate-200 px-2 py-1 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
+          title="Reset zoom to 100%"
+        >
+          100%
+        </button>
+      </div>
 
       {editing && editorStyle && (
         <textarea

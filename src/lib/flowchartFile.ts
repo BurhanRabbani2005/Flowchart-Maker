@@ -13,6 +13,7 @@ const SHAPE_TYPES: ShapeType[] = [
   "roundedRect",
   "circle",
   "diamond",
+  "parallelogram",
   "text",
 ];
 
@@ -41,10 +42,29 @@ function isFlowShape(value: unknown): value is FlowShape {
 function isConnection(value: unknown): value is Connection {
   if (!value || typeof value !== "object") return false;
   const c = value as Record<string, unknown>;
+  const strokeOk =
+    c.stroke === undefined || typeof c.stroke === "string";
+  const widthOk =
+    c.strokeWidth === undefined || typeof c.strokeWidth === "number";
+  const orthogonalOk =
+    c.orthogonal === undefined || typeof c.orthogonal === "boolean";
+  const portOk = (value: unknown) =>
+    value === undefined ||
+    value === "n" ||
+    value === "s" ||
+    value === "e" ||
+    value === "w";
+  const bendOk = c.bend === undefined || typeof c.bend === "number";
   return (
     typeof c.id === "string" &&
     typeof c.fromId === "string" &&
-    typeof c.toId === "string"
+    typeof c.toId === "string" &&
+    strokeOk &&
+    widthOk &&
+    orthogonalOk &&
+    portOk(c.fromPort) &&
+    portOk(c.toPort) &&
+    bendOk
   );
 }
 

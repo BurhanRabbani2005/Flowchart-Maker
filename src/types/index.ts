@@ -3,7 +3,10 @@ export type ShapeType =
   | "roundedRect"
   | "circle"
   | "diamond"
+  | "parallelogram"
   | "text";
+
+export type CardinalDir = "n" | "s" | "e" | "w";
 
 export interface FlowShape {
   id: string;
@@ -23,17 +26,22 @@ export interface Connection {
   id: string;
   fromId: string;
   toId: string;
+  stroke: string;
+  strokeWidth: number;
+  /** When true, route with only 90° turns between cardinal ports. */
+  orthogonal: boolean;
+  /** Explicit start port (auto-chosen when omitted). */
+  fromPort?: CardinalDir;
+  /** Explicit end port (auto-chosen when omitted). */
+  toPort?: CardinalDir;
+  /**
+   * Absolute X or Y of the middle run for Z-shaped orthogonal routes.
+   * Interpreted as X when both ports are horizontal, Y when both are vertical.
+   */
+  bend?: number;
 }
 
 export type ToolMode = "select" | "multiselect" | "connect";
-
-export interface EditorState {
-  shapes: FlowShape[];
-  connections: Connection[];
-  selectedIds: string[];
-  mode: ToolMode;
-  connectFromId: string | null;
-}
 
 export const DEFAULT_SHAPE_PROPS = {
   fill: "#ffffff",
@@ -44,10 +52,28 @@ export const DEFAULT_SHAPE_PROPS = {
   height: 80,
 } as const;
 
+export const DEFAULT_CONNECTION_PROPS = {
+  stroke: "#64748b",
+  strokeWidth: 2,
+  orthogonal: false,
+} as const;
+
+export const DEFAULT_GRID_SIZE = 24;
+
 export const SHAPE_LABELS: Record<ShapeType, string> = {
   rectangle: "Rectangle",
   roundedRect: "Rounded Rect",
   circle: "Circle",
   diamond: "Diamond",
+  parallelogram: "Parallelogram",
   text: "Text Box",
+};
+
+export const SHAPE_USAGE: Record<ShapeType, string> = {
+  rectangle: "Process / action step",
+  roundedRect: "Start or end of a flow",
+  circle: "Connector / on-page reference",
+  diamond: "Decision (yes / no branch)",
+  parallelogram: "Input / output (data)",
+  text: "Annotation or label",
 };

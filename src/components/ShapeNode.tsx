@@ -11,7 +11,8 @@ import {
   Transformer,
 } from "react-konva";
 import type Konva from "konva";
-import { diamondPoints } from "@/lib/geometry";
+import { diamondPoints, parallelogramPoints } from "@/lib/geometry";
+import { snapPositionByCenter } from "@/lib/grid";
 import type { FlowShape } from "@/types";
 
 interface ShapeNodeProps {
@@ -21,8 +22,13 @@ interface ShapeNodeProps {
   showTransformer: boolean;
   hideText: boolean;
   draggable: boolean;
-  onSelect: () => void;
+  snapToGridEnabled: boolean;
+  gridSize: number;
+  /** When true, this drag moves the whole selection via onMoveSelected. */
+  moveWithSelection: boolean;
+  onSelect: (additive?: boolean) => void;
   onChange: (updates: Partial<FlowShape>) => void;
+  onMoveSelected: (dx: number, dy: number) => void;
   onEditText: () => void;
 }
 
@@ -33,12 +39,18 @@ export function ShapeNode({
   showTransformer,
   hideText,
   draggable,
+  snapToGridEnabled,
+  gridSize,
+  moveWithSelection,
   onSelect,
   onChange,
+  onMoveSelected,
   onEditText,
 }: ShapeNodeProps) {
   const groupRef = useRef<Konva.Group>(null);
   const transformerRef = useRef<Konva.Transformer>(null);
+  const dragOrigin = useRef({ x: shape.x, y: shape.y });
+  const lastPos = useRef({ x: shape.x, y: shape.y });
 
   useEffect(() => {
     const transformer = transformerRef.current;
@@ -86,12 +98,37 @@ export function ShapeNode({
     node.scaleX(1);
     node.scaleY(1);
 
+    let x = node.x();
+    let y = node.y();
+    const width = Math.max(40, shape.width * scaleX);
+    const height = Math.max(30, shape.height * scaleY);
+    if (snapToGridEnabled) {
+      const snapped = snapPositionByCenter(x, y, width, height, gridSize);
+      x = snapped.x;
+      y = snapped.y;
+      node.position({ x, y });
+    }
+
     onChange({
-      x: node.x(),
-      y: node.y(),
-      width: Math.max(40, shape.width * scaleX),
-      height: Math.max(30, shape.height * scaleY),
+      x,
+      y,
+      width,
+      height,
     });
+  };
+
+  const constrainPosition = (
+    x: number,
+    y: number,
+    shiftKey: boolean,
+  ): { x: number; y: number } => {
+    if (!shiftKey) return { x, y };
+    const dx = Math.abs(x - dragOrigin.current.x);
+    const dy = Math.abs(y - dragOrigin.current.y);
+    if (dx >= dy) {
+      return { x, y: dragOrigin.current.y };
+    }
+    return { x: dragOrigin.current.x, y };
   };
 
   return (
@@ -102,13 +139,16 @@ export function ShapeNode({
         x={shape.x}
         y={shape.y}
         draggable={draggable}
+        listening
         onClick={(e) => {
           e.cancelBubble = true;
-          onSelect();
+          const additive =
+            e.evt.shiftKey || e.evt.ctrlKey || e.evt.metaKey;
+          onSelect(additive);
         }}
         onTap={(e) => {
           e.cancelBubble = true;
-          onSelect();
+          onSelect(false);
         }}
         onDblClick={(e) => {
           e.cancelBubble = true;
@@ -118,17 +158,59 @@ export function ShapeNode({
           e.cancelBubble = true;
           onEditText();
         }}
+        onDragStart={(e) => {
+          dragOrigin.current = { x: e.target.x(), y: e.target.y() };
+          lastPos.current = { x: e.target.x(), y: e.target.y() };
+        }}
         onDragMove={(e) => {
-          onChange({
-            x: e.target.x(),
-            y: e.target.y(),
-          });
+          let next = constrainPosition(
+            e.target.x(),
+            e.target.y(),
+            e.evt.shiftKey,
+          );
+          e.target.position(next);
+
+          if (moveWithSelection) {
+            const dx = next.x - lastPos.current.x;
+            const dy = next.y - lastPos.current.y;
+            lastPos.current = next;
+            if (dx !== 0 || dy !== 0) {
+              onMoveSelected(dx, dy);
+            }
+            // Keep this node at lastPos; React will sync all selected shapes.
+            e.target.position(lastPos.current);
+            return;
+          }
+
+          onChange(next);
         }}
         onDragEnd={(e) => {
-          onChange({
-            x: e.target.x(),
-            y: e.target.y(),
-          });
+          let next = constrainPosition(
+            e.target.x(),
+            e.target.y(),
+            e.evt.shiftKey,
+          );
+          if (snapToGridEnabled) {
+            const snapped = snapPositionByCenter(
+              next.x,
+              next.y,
+              shape.width,
+              shape.height,
+              gridSize,
+            );
+            if (moveWithSelection) {
+              const dx = snapped.x - next.x;
+              const dy = snapped.y - next.y;
+              if (dx !== 0 || dy !== 0) {
+                onMoveSelected(dx, dy);
+              }
+            }
+            next = snapped;
+          }
+          e.target.position(next);
+          if (!moveWithSelection) {
+            onChange(next);
+          }
         }}
         onTransformEnd={handleTransformEnd}
       >
@@ -136,7 +218,8 @@ export function ShapeNode({
           <Rect
             width={shape.width}
             height={shape.height}
-            fill={shape.fill}
+            fill={shape.fill === "transparent" ? undefined : shape.fill}
+            fillEnabled={shape.fill !== "transparent"}
             stroke={highlight}
             strokeWidth={strokeWidth}
           />
@@ -146,8 +229,9 @@ export function ShapeNode({
           <Rect
             width={shape.width}
             height={shape.height}
-            cornerRadius={12}
-            fill={shape.fill}
+            cornerRadius={24}
+            fill={shape.fill === "transparent" ? undefined : shape.fill}
+            fillEnabled={shape.fill !== "transparent"}
             stroke={highlight}
             strokeWidth={strokeWidth}
           />
@@ -159,7 +243,8 @@ export function ShapeNode({
             y={shape.height / 2}
             radiusX={shape.width / 2}
             radiusY={shape.height / 2}
-            fill={shape.fill}
+            fill={shape.fill === "transparent" ? undefined : shape.fill}
+            fillEnabled={shape.fill !== "transparent"}
             stroke={highlight}
             strokeWidth={strokeWidth}
           />
@@ -169,7 +254,19 @@ export function ShapeNode({
           <Line
             points={diamondPoints(shape.width, shape.height)}
             closed
-            fill={shape.fill}
+            fill={shape.fill === "transparent" ? undefined : shape.fill}
+            fillEnabled={shape.fill !== "transparent"}
+            stroke={highlight}
+            strokeWidth={strokeWidth}
+          />
+        )}
+
+        {shape.type === "parallelogram" && (
+          <Line
+            points={parallelogramPoints(shape.width, shape.height)}
+            closed
+            fill={shape.fill === "transparent" ? undefined : shape.fill}
+            fillEnabled={shape.fill !== "transparent"}
             stroke={highlight}
             strokeWidth={strokeWidth}
           />
@@ -180,9 +277,7 @@ export function ShapeNode({
             width={shape.width}
             height={shape.height}
             fill={
-              shape.fill === "transparent"
-                ? "rgba(255,255,255,0.01)"
-                : shape.fill
+              shape.fill === "transparent" ? "rgba(0,0,0,0)" : shape.fill
             }
             stroke={highlight}
             strokeWidth={strokeWidth}
