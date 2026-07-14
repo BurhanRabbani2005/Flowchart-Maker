@@ -138,6 +138,7 @@ export function ShapeNode({
         id={shape.id}
         x={shape.x}
         y={shape.y}
+        opacity={shape.opacity ?? 1}
         draggable={draggable}
         listening
         onClick={(e) => {

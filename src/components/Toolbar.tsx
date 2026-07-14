@@ -5,10 +5,14 @@ import { SHAPE_LABELS, SHAPE_USAGE } from "@/types";
 import type { AlignDirection, DistributeAxis } from "@/lib/align";
 
 interface TopBarProps {
+  fileName: string;
   pngBackground: string;
   pngTransparent: boolean;
+  showInstructions: boolean;
+  onFileNameChange: (value: string) => void;
   onPngBackgroundChange: (color: string) => void;
   onPngTransparentChange: (value: boolean) => void;
+  onShowInstructionsChange: (value: boolean) => void;
   onDownloadPng: () => void;
   onExportJson: () => void;
   onImportJson: () => void;
@@ -91,10 +95,14 @@ function ShapeIcon({ type }: { type: ShapeType }) {
 }
 
 export function TopBar({
+  fileName,
   pngBackground,
   pngTransparent,
+  showInstructions,
+  onFileNameChange,
   onPngBackgroundChange,
   onPngTransparentChange,
+  onShowInstructionsChange,
   onDownloadPng,
   onExportJson,
   onImportJson,
@@ -106,6 +114,23 @@ export function TopBar({
       </span>
 
       <div className="flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          onClick={() => onShowInstructionsChange(!showInstructions)}
+          className={
+            showInstructions
+              ? "inline-flex h-9 items-center gap-1.5 rounded-md border border-teal-400 bg-teal-900/50 px-3 text-xs font-medium text-teal-100 transition hover:bg-teal-900/70"
+              : fileBtn
+          }
+          title={
+            showInstructions
+              ? "Hide canvas instructions"
+              : "Show canvas instructions"
+          }
+          aria-pressed={showInstructions}
+        >
+          Instructions
+        </button>
         <label className={`${fileBtn} cursor-pointer`}>
           <input
             type="checkbox"
@@ -130,6 +155,16 @@ export function TopBar({
         <button type="button" onClick={onDownloadPng} className={fileBtn}>
           PNG
         </button>
+        <input
+          type="text"
+          value={fileName}
+          onChange={(e) => onFileNameChange(e.target.value)}
+          placeholder="flowchart"
+          spellCheck={false}
+          className="h-9 w-40 min-w-[8rem] rounded-md border border-slate-500 bg-slate-900 px-2.5 text-xs text-slate-100 placeholder:text-slate-500 outline-none focus:border-teal-400 sm:w-52"
+          title="Optional file name for PNG / JSON export"
+          aria-label="File name"
+        />
         <button
           type="button"
           onClick={onImportJson}

@@ -30,6 +30,8 @@ export function Editor() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [pngBackground, setPngBackground] = useState("#ffffff");
   const [pngTransparent, setPngTransparent] = useState(false);
+  const [showInstructions, setShowInstructions] = useState(true);
+  const [fileName, setFileName] = useState("");
 
   const {
     shapes,
@@ -91,20 +93,27 @@ export function Editor() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [copySelected, pasteClipboard, deleteSelected]);
 
+  const resolveExportBaseName = useCallback(() => {
+    const trimmed = fileName.trim();
+    if (!trimmed) return "flowchart";
+    const withoutExt = trimmed.replace(/\.(json|png)$/i, "").trim();
+    return withoutExt || "flowchart";
+  }, [fileName]);
+
   const handleDownloadPng = useCallback(() => {
     const stage = stageRef.current;
     if (!stage) return;
     downloadPngFromStage(
       stage,
-      "flowchart.png",
+      `${resolveExportBaseName()}.png`,
       pngTransparent ? null : pngBackground,
     );
-  }, [pngBackground, pngTransparent]);
+  }, [pngBackground, pngTransparent, resolveExportBaseName]);
 
   const handleExportJson = useCallback(() => {
     const json = serializeFlowchart(shapes, connections);
-    downloadJson("flowchart.json", json);
-  }, [shapes, connections]);
+    downloadJson(`${resolveExportBaseName()}.json`, json);
+  }, [shapes, connections, resolveExportBaseName]);
 
   const handleImportJson = useCallback(() => {
     fileInputRef.current?.click();
@@ -125,6 +134,7 @@ export function Editor() {
         const text = await file.text();
         const doc = parseFlowchartDocument(text);
         loadDocument(doc);
+        setFileName(file.name);
       } catch (err) {
         const message =
           err instanceof Error ? err.message : "Failed to import flowchart.";
@@ -138,10 +148,14 @@ export function Editor() {
     <div className="flex h-dvh flex-col overflow-hidden bg-slate-50">
       {/* Full-width dark top row */}
       <TopBar
+        fileName={fileName}
         pngBackground={pngBackground}
         pngTransparent={pngTransparent}
+        showInstructions={showInstructions}
+        onFileNameChange={setFileName}
         onPngBackgroundChange={setPngBackground}
         onPngTransparentChange={setPngTransparent}
+        onShowInstructionsChange={setShowInstructions}
         onDownloadPng={handleDownloadPng}
         onExportJson={handleExportJson}
         onImportJson={handleImportJson}
@@ -183,6 +197,7 @@ export function Editor() {
               selectedConnectionId={selectedConnectionId}
               connectFromId={connectFromId}
               mode={mode}
+              showInstructions={showInstructions}
               onSelect={selectShape}
               onSelectConnection={selectConnection}
               onSetSelection={setSelection}

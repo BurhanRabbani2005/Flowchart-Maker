@@ -32,6 +32,7 @@ function normalizeConnection(connection: Connection): Connection {
     stroke: connection.stroke || DEFAULT_CONNECTION_PROPS.stroke,
     strokeWidth:
       connection.strokeWidth ?? DEFAULT_CONNECTION_PROPS.strokeWidth,
+    opacity: connection.opacity ?? DEFAULT_CONNECTION_PROPS.opacity,
     orthogonal:
       connection.orthogonal ?? DEFAULT_CONNECTION_PROPS.orthogonal,
   };
@@ -128,6 +129,7 @@ export function useEditorState() {
         ...connection,
         stroke: source.stroke,
         strokeWidth: source.strokeWidth,
+        opacity: source.opacity,
         orthogonal: source.orthogonal,
       }));
     });

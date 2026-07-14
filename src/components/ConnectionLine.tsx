@@ -177,6 +177,7 @@ export function ConnectionLine({
 
   return (
     <Group
+      opacity={connection.opacity ?? DEFAULT_CONNECTION_PROPS.opacity}
       onMouseEnter={(e) => {
         setHovered(true);
         const container = e.target.getStage()?.container();

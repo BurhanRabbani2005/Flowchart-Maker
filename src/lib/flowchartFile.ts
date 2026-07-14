@@ -35,8 +35,17 @@ function isFlowShape(value: unknown): value is FlowShape {
     typeof s.fill === "string" &&
     typeof s.stroke === "string" &&
     typeof s.strokeWidth === "number" &&
-    typeof s.fontSize === "number"
+    typeof s.fontSize === "number" &&
+    (s.opacity === undefined || typeof s.opacity === "number")
   );
+}
+
+function normalizeShape(shape: FlowShape): FlowShape {
+  const opacity =
+    typeof shape.opacity === "number"
+      ? Math.min(1, Math.max(0, shape.opacity))
+      : 1;
+  return { ...shape, opacity };
 }
 
 function isConnection(value: unknown): value is Connection {
@@ -55,6 +64,8 @@ function isConnection(value: unknown): value is Connection {
     value === "e" ||
     value === "w";
   const bendOk = c.bend === undefined || typeof c.bend === "number";
+  const opacityOk =
+    c.opacity === undefined || typeof c.opacity === "number";
   return (
     typeof c.id === "string" &&
     typeof c.fromId === "string" &&
@@ -64,7 +75,8 @@ function isConnection(value: unknown): value is Connection {
     orthogonalOk &&
     portOk(c.fromPort) &&
     portOk(c.toPort) &&
-    bendOk
+    bendOk &&
+    opacityOk
   );
 }
 
@@ -115,7 +127,7 @@ export function parseFlowchartDocument(raw: string): FlowchartDocument {
   return {
     version:
       typeof doc.version === "number" ? doc.version : FLOWCHART_FILE_VERSION,
-    shapes: doc.shapes,
+    shapes: doc.shapes.map(normalizeShape),
     connections: doc.connections,
   };
 }

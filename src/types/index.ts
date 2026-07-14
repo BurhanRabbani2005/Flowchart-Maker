@@ -20,6 +20,8 @@ export interface FlowShape {
   stroke: string;
   strokeWidth: number;
   fontSize: number;
+  /** 0 = fully transparent, 1 = fully opaque */
+  opacity: number;
 }
 
 export interface Connection {
@@ -28,6 +30,8 @@ export interface Connection {
   toId: string;
   stroke: string;
   strokeWidth: number;
+  /** 0 = fully transparent, 1 = fully opaque */
+  opacity: number;
   /** When true, route with only 90° turns between cardinal ports. */
   orthogonal: boolean;
   /** Explicit start port (auto-chosen when omitted). */
@@ -48,6 +52,7 @@ export const DEFAULT_SHAPE_PROPS = {
   stroke: "#334155",
   strokeWidth: 2,
   fontSize: 16,
+  opacity: 1,
   width: 140,
   height: 80,
 } as const;
@@ -55,6 +60,7 @@ export const DEFAULT_SHAPE_PROPS = {
 export const DEFAULT_CONNECTION_PROPS = {
   stroke: "#64748b",
   strokeWidth: 2,
+  opacity: 1,
   orthogonal: false,
 } as const;
 

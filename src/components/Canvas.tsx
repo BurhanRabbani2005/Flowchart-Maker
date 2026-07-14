@@ -19,6 +19,7 @@ interface CanvasProps {
   selectedConnectionId: string | null;
   connectFromId: string | null;
   mode: ToolMode;
+  showInstructions: boolean;
   onSelect: (id: string | null, additive?: boolean) => void;
   onSelectConnection: (id: string | null) => void;
   onSetSelection: (ids: string[]) => void;
@@ -61,6 +62,19 @@ function pointerToWorld(
   };
 }
 
+const INSTRUCTIONS: { keys: string; label: string }[] = [
+  { keys: "Shift + drag", label: "Lock move to one axis" },
+  { keys: "⌘/Ctrl + C / V", label: "Copy / paste" },
+  { keys: "Arrow keys", label: "Pan canvas" },
+  { keys: "Shift + arrows", label: "Pan farther" },
+  { keys: "Middle-click drag", label: "Pan canvas" },
+  { keys: "Scroll", label: "Zoom" },
+  { keys: "Double-click", label: "Edit text" },
+  { keys: "Delete", label: "Remove selection" },
+  { keys: "Shift + click", label: "Add to selection" },
+  { keys: "Drag empty area", label: "Marquee select" },
+];
+
 export function Canvas({
   shapes,
   connections,
@@ -68,6 +82,7 @@ export function Canvas({
   selectedConnectionId,
   connectFromId,
   mode,
+  showInstructions,
   onSelect,
   onSelectConnection,
   onSetSelection,
@@ -252,6 +267,42 @@ export function Canvas({
     };
   }, []);
 
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (editingId) return;
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+      if (
+        e.key !== "ArrowLeft" &&
+        e.key !== "ArrowRight" &&
+        e.key !== "ArrowUp" &&
+        e.key !== "ArrowDown"
+      ) {
+        return;
+      }
+
+      e.preventDefault();
+      const step = e.shiftKey ? 40 : 16;
+      let dx = 0;
+      let dy = 0;
+      if (e.key === "ArrowLeft") dx = step;
+      if (e.key === "ArrowRight") dx = -step;
+      if (e.key === "ArrowUp") dy = step;
+      if (e.key === "ArrowDown") dy = -step;
+
+      viewRef.current = {
+        ...viewRef.current,
+        x: viewRef.current.x + dx,
+        y: viewRef.current.y + dy,
+      };
+      applyStageView();
+      scheduleViewSync();
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [applyStageView, editingId, scheduleViewSync]);
+
   const handleWheel = useCallback(
     (e: Konva.KonvaEventObject<WheelEvent>) => {
       e.evt.preventDefault();
@@ -262,7 +313,7 @@ export function Canvas({
       const pointer = stage.getPointerPosition();
       if (!pointer) return;
 
-      const scaleBy = 1.06;
+      const scaleBy = 1.008;
       const direction = e.evt.deltaY > 0 ? -1 : 1;
       const next =
         direction > 0 ? oldScale * scaleBy : oldScale / scaleBy;
@@ -365,6 +416,7 @@ export function Canvas({
       : undefined;
 
   const canMarquee = mode === "select" || mode === "multiselect";
+  const showExportHint = shapes.length === 0 && connections.length === 0;
 
   return (
     <div
@@ -493,6 +545,29 @@ export function Canvas({
           ))}
         </Layer>
       </Stage>
+
+      {showInstructions && (
+        <div className="pointer-events-none absolute inset-x-0 top-0 z-[15] flex justify-center px-8 pt-6">
+          <p className="max-w-2xl text-center text-sm leading-relaxed text-slate-400 select-none">
+            {INSTRUCTIONS.map((item, i) => (
+              <span key={item.keys}>
+                {i > 0 ? " · " : null}
+                {item.keys} — {item.label}
+              </span>
+            ))}
+          </p>
+        </div>
+      )}
+
+      {showExportHint && (
+        <div className="pointer-events-none absolute inset-0 z-[5] flex items-center justify-center px-8">
+          <p className="max-w-lg text-center text-lg leading-relaxed text-red-600 select-none sm:text-xl">
+            Nothing is saved in the browser automatically.
+            <br />
+            Export a local JSON copy to keep your flowchart safe.
+          </p>
+        </div>
+      )}
 
       <div className="absolute bottom-3 right-3 z-30 flex items-center gap-2 rounded-lg border border-slate-200 bg-white/95 px-3 py-2 shadow-sm">
         <span className="text-[11px] font-medium text-slate-500">Zoom</span>

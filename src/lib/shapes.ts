@@ -41,5 +41,6 @@ export function createShape(
     stroke: DEFAULT_SHAPE_PROPS.stroke,
     strokeWidth: DEFAULT_SHAPE_PROPS.strokeWidth,
     fontSize: DEFAULT_SHAPE_PROPS.fontSize,
+    opacity: DEFAULT_SHAPE_PROPS.opacity,
   };
 }

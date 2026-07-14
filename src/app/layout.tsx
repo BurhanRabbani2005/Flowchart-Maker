@@ -13,8 +13,42 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "FlowDraw — Flowchart Editor",
-  description: "A browser-based flowchart editor with an infinite canvas",
+  title: {
+    default: "FlowDraw — Free Online Flowchart Maker",
+    template: "%s | FlowDraw",
+  },
+  description:
+    "100% free online flowchart maker. Create and edit flowcharts in your browser with an infinite canvas. No signup, no paywall, no ads behind a login — export JSON or PNG locally anytime.",
+  keywords: [
+    "free flowchart maker",
+    "online flowchart editor",
+    "flowchart creator",
+    "100% free",
+    "no signup",
+    "flow diagram",
+    "process map",
+    "FlowDraw",
+  ],
+  authors: [{ name: "FlowDraw" }],
+  creator: "FlowDraw",
+  robots: {
+    index: true,
+    follow: true,
+  },
+  openGraph: {
+    title: "FlowDraw — Free Online Flowchart Maker",
+    description:
+      "100% free flowchart editor in your browser. No account required. Export a local copy to keep your work safe.",
+    type: "website",
+    siteName: "FlowDraw",
+  },
+  twitter: {
+    card: "summary",
+    title: "FlowDraw — Free Online Flowchart Maker",
+    description:
+      "100% free online flowchart maker. No signup. Export locally to keep your charts safe.",
+  },
+  category: "productivity",
 };
 
 export default function RootLayout({
