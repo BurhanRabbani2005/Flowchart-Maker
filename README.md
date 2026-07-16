@@ -22,6 +22,10 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000).
 
+## Learning the codebase
+
+On the `commented` branch, see **[LEARNING_GUIDE.md](LEARNING_GUIDE.md)** for a recommended reading order (HTML/JS → TypeScript).
+
 ## Project structure
 
 ```
