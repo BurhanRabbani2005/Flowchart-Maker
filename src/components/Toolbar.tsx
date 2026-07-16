@@ -1,3 +1,9 @@
+/**
+ * Top dark bar (file actions) + lighter toolbars (shapes / edit / arrange).
+ *
+ * Pattern: parent owns state; children receive values + `onChange` callbacks.
+ * That is "lifting state up" — common in React apps.
+ */
 "use client";
 
 import type { ShapeType, ToolMode } from "@/types";
@@ -9,6 +15,7 @@ interface TopBarProps {
   pngBackground: string;
   pngTransparent: boolean;
   showInstructions: boolean;
+  // Callback props: functions the child can call to ask the parent to update state.
   onFileNameChange: (value: string) => void;
   onPngBackgroundChange: (color: string) => void;
   onPngTransparentChange: (value: boolean) => void;

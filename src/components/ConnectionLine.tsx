@@ -1,3 +1,7 @@
+/**
+ * Draws one connector between two shapes, plus drag handles when selected.
+ * Local UI state (`hovered`) stays in this component with useState.
+ */
 "use client";
 
 import { useState } from "react";

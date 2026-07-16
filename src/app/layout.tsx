@@ -1,7 +1,13 @@
+/**
+ * Root layout wraps EVERY page in the app (like a shared HTML shell).
+ * In plain HTML you'd write <html> and <body> yourself once.
+ * In Next.js App Router, this file does that job.
+ */
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
+// Load Google fonts and expose them as CSS variables (e.g. --font-geist-sans).
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
@@ -12,6 +18,10 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+/**
+ * `Metadata` is a TypeScript type from Next.js.
+ * Typing this object helps catch typos in SEO fields at edit time.
+ */
 export const metadata: Metadata = {
   title: {
     default: "FlowDraw — Free Online Flowchart Maker",
@@ -51,6 +61,14 @@ export const metadata: Metadata = {
   category: "productivity",
 };
 
+/**
+ * Function parameter typing example:
+ * `{ children }: { children: React.ReactNode }`
+ * means the component receives a prop named `children`
+ * (whatever is nested inside <RootLayout>...</RootLayout>).
+ *
+ * `Readonly<...>` means you shouldn't reassign those props.
+ */
 export default function RootLayout({
   children,
 }: Readonly<{

@@ -1,5 +1,9 @@
+/**
+ * Helpers for marquee (drag-box) selection on the canvas.
+ */
 import type { FlowShape } from "@/types";
 
+/** A rectangle described by top-left corner + size (not two corners). */
 export interface SelectionRect {
   x: number;
   y: number;
@@ -7,6 +11,10 @@ export interface SelectionRect {
   height: number;
 }
 
+/**
+ * Users can drag the selection box in any direction.
+ * This normalizes two points into a proper top-left + positive width/height.
+ */
 export function normalizeRect(
   x1: number,
   y1: number,
@@ -28,6 +36,7 @@ export function isShapeFullyInside(
   shape: FlowShape,
   rect: SelectionRect,
 ): boolean {
+  // Return type `: boolean` documents that this is a yes/no function.
   return (
     shape.x >= rect.x &&
     shape.y >= rect.y &&
@@ -36,6 +45,10 @@ export function isShapeFullyInside(
   );
 }
 
+/**
+ * `.filter(...).map(...)` is the same chaining pattern as in JavaScript.
+ * TypeScript just knows the result is `string[]` because `.id` is a string.
+ */
 export function idsFullyInsideRect(
   shapes: FlowShape[],
   rect: SelectionRect,

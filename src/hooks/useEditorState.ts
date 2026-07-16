@@ -1,3 +1,12 @@
+/**
+ * Custom React hook: all editor "app state" lives here.
+ *
+ * `"use client"` (Next.js): this module runs in the browser.
+ * Hooks like useState only work in client components.
+ *
+ * If you know JS variables: useState is a variable that
+ * tells React "please re-render when this value changes."
+ */
 "use client";
 
 import { useCallback, useRef, useState } from "react";
@@ -19,6 +28,7 @@ import {
   type ToolMode,
 } from "@/types";
 
+/** What we store when the user copies shapes. */
 interface ClipboardPayload {
   shapes: FlowShape[];
   connections: Connection[];
@@ -26,6 +36,11 @@ interface ClipboardPayload {
 
 const PASTE_OFFSET = 24;
 
+/**
+ * Fill in missing connection fields with defaults.
+ * `??` (nullish coalescing): use the right side only if left is null/undefined.
+ * (`||` would also replace `0` or `""`, which we usually don't want for numbers.)
+ */
 function normalizeConnection(connection: Connection): Connection {
   return {
     ...connection,
@@ -39,9 +54,11 @@ function normalizeConnection(connection: Connection): Connection {
 }
 
 export function useEditorState() {
+  // Generic syntax: useState<FlowShape[]>([]) means "array of FlowShape".
   const [shapes, setShapes] = useState<FlowShape[]>([]);
   const [connections, setConnections] = useState<Connection[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  // string | null = either a connection id, or nothing selected.
   const [selectedConnectionId, setSelectedConnectionId] = useState<
     string | null
   >(null);
@@ -50,6 +67,7 @@ export function useEditorState() {
   const [hasClipboard, setHasClipboard] = useState(false);
   const [snapToGrid, setSnapToGrid] = useState(false);
   const [gridSize, setGridSize] = useState(DEFAULT_GRID_SIZE);
+  // useRef stores a value that survives re-renders WITHOUT causing a re-render.
   const clipboardRef = useRef<ClipboardPayload | null>(null);
 
   const selectedShape =
@@ -62,8 +80,14 @@ export function useEditorState() {
       ? (connections.find((c) => c.id === selectedConnectionId) ?? null)
       : null;
 
+  /**
+   * useCallback memorizes a function so child components don't re-create
+   * it every render (helps with performance / dependency arrays).
+   * The `[snapToGrid, gridSize]` list = "recreate if these change."
+   */
   const addShape = useCallback(
     (type: ShapeType) => {
+      // Functional update: setShapes(prev => ...) uses the latest array safely.
       setShapes((prev) => {
         const offset = prev.length * 24;
         const shape = createShape(
@@ -74,7 +98,7 @@ export function useEditorState() {
           gridSize,
         );
         setSelectedIds([shape.id]);
-        return [...prev, shape];
+        return [...prev, shape]; // new array = React sees a change
       });
       setSelectedConnectionId(null);
       setMode("select");
@@ -98,6 +122,7 @@ export function useEditorState() {
     [selectedIds],
   );
 
+  // Partial<FlowShape> = any subset of fields (e.g. only { fill: "#fff" }).
   const updateShape = useCallback(
     (id: string, updates: Partial<FlowShape>) => {
       setShapes((prev) =>

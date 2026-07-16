@@ -1,3 +1,9 @@
+/**
+ * Main editor shell: top bar + toolbar + canvas + properties panel.
+ *
+ * Think of this as the "page controller" that wires UI events
+ * to the state hook (`useEditorState`) and the canvas.
+ */
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -13,6 +19,11 @@ import {
   serializeFlowchart,
 } from "@/lib/flowchartFile";
 
+/**
+ * dynamic() loads Canvas only in the browser.
+ * Konva needs `window`, so we disable server-side rendering (`ssr: false`).
+ * `.then((mod) => mod.Canvas)` picks the named export from the module.
+ */
 const Canvas = dynamic(
   () => import("@/components/Canvas").then((mod) => mod.Canvas),
   {
@@ -26,6 +37,7 @@ const Canvas = dynamic(
 );
 
 export function Editor() {
+  // Refs point at DOM / Konva objects without storing them in React state.
   const stageRef = useRef<Konva.Stage | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [pngBackground, setPngBackground] = useState("#ffffff");
@@ -66,12 +78,14 @@ export function Editor() {
     loadDocument,
   } = useEditorState();
 
+  // useEffect runs after render — here we attach a global keyboard listener.
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
+      // Don't steal shortcuts while the user is typing in an input.
       const tag = (e.target as HTMLElement)?.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA") return;
 
-      const mod = e.ctrlKey || e.metaKey;
+      const mod = e.ctrlKey || e.metaKey; // Ctrl on Windows/Linux, ⌘ on Mac
 
       if (mod && e.key.toLowerCase() === "c") {
         e.preventDefault();

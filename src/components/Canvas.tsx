@@ -1,3 +1,12 @@
+/**
+ * Infinite canvas built with react-konva (HTML5 canvas via React).
+ *
+ * Props callbacks like `onSelect` are typed functions —
+ * TypeScript checks you pass the right arguments when calling them.
+ *
+ * `Partial<FlowShape>` means "any subset of FlowShape fields"
+ * (useful for update payloads: only send what changed).
+ */
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -50,6 +59,11 @@ interface MarqueeState {
   currentY: number;
 }
 
+/**
+ * Convert screen (mouse) coordinates → world (canvas) coordinates,
+ * accounting for pan (`view.x/y`) and zoom (`view.scale`).
+ * Returns null if the pointer position isn't available.
+ */
 function pointerToWorld(
   stage: Konva.Stage,
   view: ViewState,

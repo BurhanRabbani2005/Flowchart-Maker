@@ -1,3 +1,7 @@
+/**
+ * Align and distribute selected shapes.
+ * Pure functions: input shapes → output new shapes array (no DOM / React here).
+ */
 import type { FlowShape } from "@/types";
 
 export type AlignDirection =
@@ -9,11 +13,16 @@ export type AlignDirection =
   | "centerV";
 export type DistributeAxis = "horizontal" | "vertical";
 
+/** Pick only the shapes whose ids are in the selection list. */
 function selectedShapes(shapes: FlowShape[], ids: string[]): FlowShape[] {
   const idSet = new Set(ids);
   return shapes.filter((s) => idSet.has(s.id));
 }
 
+/**
+ * Align selected shapes. Returns the full shapes list with some x/y updated.
+ * `switch` + typed union means TypeScript can warn if you forget a case.
+ */
 export function alignShapes(
   shapes: FlowShape[],
   ids: string[],
@@ -26,6 +35,7 @@ export function alignShapes(
 
   switch (direction) {
     case "left": {
+      // Spread `...targets.map` into Math.min — same as Math.min(a, b, c, ...)
       const value = Math.min(...targets.map((s) => s.x));
       return shapes.map((s) =>
         idSet.has(s.id) ? { ...s, x: value } : s,
@@ -70,6 +80,10 @@ export function alignShapes(
   }
 }
 
+/**
+ * Space shapes evenly along an axis. Needs at least 3 shapes.
+ * `Map<string, number>` stores "shape id → new position".
+ */
 export function distributeShapes(
   shapes: FlowShape[],
   ids: string[],
@@ -81,6 +95,7 @@ export function distributeShapes(
   const idSet = new Set(ids);
 
   if (axis === "horizontal") {
+    // Copy before sorting so we don't mutate the original array order.
     const sorted = [...targets].sort((a, b) => a.x - b.x);
     const first = sorted[0];
     const last = sorted[sorted.length - 1];
@@ -96,6 +111,8 @@ export function distributeShapes(
     }
 
     return shapes.map((s) =>
+      // The `!` after get() is a non-null assertion: "I know this key exists."
+      // Prefer checking with `.has()` (as we do) before using `!`.
       idSet.has(s.id) && nextX.has(s.id)
         ? { ...s, x: nextX.get(s.id)! }
         : s,

@@ -1,7 +1,13 @@
+/**
+ * Geometry helpers for shapes and connector routing.
+ * Lots of x/y math — still just JavaScript numbers, with TypeScript labels.
+ */
 import type { CardinalDir, Connection, FlowShape } from "@/types";
 
+/** Re-export so other files can import CardinalDir from geometry if they want. */
 export type { CardinalDir };
 
+/** Center point of a shape's bounding box. */
 export function getShapeCenter(shape: FlowShape): { x: number; y: number } {
   return {
     x: shape.x + shape.width / 2,
@@ -30,6 +36,10 @@ function insetPoint(
   };
 }
 
+/**
+ * Flat point list for Konva <Line>: [x1, y1, x2, y2, ...].
+ * Same idea as HTML canvas path points, just as one number array.
+ */
 export function parallelogramPoints(width: number, height: number): number[] {
   const skew = Math.min(width * 0.25, width / 3);
   return [skew, 0, width, 0, width - skew, height, 0, height];

@@ -1,3 +1,10 @@
+/**
+ * Right-hand properties panel (resizable + collapsible).
+ *
+ * Conditional rendering: show different forms depending on whether
+ * a shape, a connector, multiple shapes, or nothing is selected.
+ * (`shape: FlowShape | null` means "shape or nothing.")
+ */
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -107,6 +114,10 @@ function PanelHeader({
   );
 }
 
+/**
+ * Shared transparency UI: range slider + numeric input.
+ * Props are a simple controlled-component pattern (value + onChange).
+ */
 function TransparencyControl({
   opacity,
   onChange,

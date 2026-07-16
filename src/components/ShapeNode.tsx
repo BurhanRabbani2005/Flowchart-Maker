@@ -1,3 +1,8 @@
+/**
+ * One flowchart shape on the Konva canvas.
+ * Props interface documents every input this component expects —
+ * like a typed version of React propTypes.
+ */
 "use client";
 
 import { useEffect, useRef } from "react";

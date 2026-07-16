@@ -1,7 +1,15 @@
+/**
+ * Save / load flowchart files as JSON.
+ *
+ * Important TypeScript idea here: when you read a file from disk,
+ * TypeScript does NOT trust it. The data starts as `unknown`,
+ * and we use "type guards" to prove it is safe before using it.
+ */
 import type { Connection, FlowShape, ShapeType } from "@/types";
 
 export const FLOWCHART_FILE_VERSION = 1;
 
+/** The on-disk format of a saved flowchart. */
 export interface FlowchartDocument {
   version: number;
   shapes: FlowShape[];
@@ -17,12 +25,19 @@ const SHAPE_TYPES: ShapeType[] = [
   "text",
 ];
 
+/**
+ * Type predicate: `value is ShapeType`
+ * If this function returns true, TypeScript treats `value` as a ShapeType afterward.
+ * (`unknown` = "we don't know the type yet" — safer than `any`.)
+ */
 function isShapeType(value: unknown): value is ShapeType {
   return typeof value === "string" && SHAPE_TYPES.includes(value as ShapeType);
 }
 
+/** Runtime check that a parsed object looks like a FlowShape. */
 function isFlowShape(value: unknown): value is FlowShape {
   if (!value || typeof value !== "object") return false;
+  // Cast: "treat this object as a dictionary of unknown values."
   const s = value as Record<string, unknown>;
   return (
     typeof s.id === "string" &&
@@ -95,10 +110,12 @@ export function serializeFlowchart(
   shapes: FlowShape[],
   connections: Connection[],
 ): string {
+  // JSON.stringify is the same JS API; third arg `2` pretty-prints with indentation.
   return JSON.stringify(createFlowchartDocument(shapes, connections), null, 2);
 }
 
 export function parseFlowchartDocument(raw: string): FlowchartDocument {
+  // Start as `unknown` — we validate before trusting the data.
   let data: unknown;
   try {
     data = JSON.parse(raw);
