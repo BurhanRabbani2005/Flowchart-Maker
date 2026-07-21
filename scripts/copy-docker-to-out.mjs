@@ -6,6 +6,7 @@ const outDir = path.join(root, "out");
 const standaloneDir = path.join(root, ".next", "standalone");
 const staticDir = path.join(root, ".next", "static");
 const publicDir = path.join(root, "public");
+const fullSqlite = path.join(root, "node_modules", "better-sqlite3");
 
 function copyRecursive(from, to) {
   fs.mkdirSync(path.dirname(to), { recursive: true });
@@ -23,11 +24,42 @@ function materializeSymlinks(dir) {
     if (st.isSymbolicLink()) {
       const target = fs.realpathSync(full);
       fs.rmSync(full, { force: true });
-      fs.cpSync(target, full, { recursive: true, force: true, dereference: true });
+      fs.cpSync(target, full, {
+        recursive: true,
+        force: true,
+        dereference: true,
+      });
       console.log(`postbuild: materialized symlink ${path.relative(root, full)}`);
       continue;
     }
     if (st.isDirectory()) materializeSymlinks(full);
+  }
+}
+
+/**
+ * Standalone tracing ships an incomplete better-sqlite3 (often missing Linux
+ * prebuilds). Replace every copy with the full package from node_modules.
+ */
+function injectFullBetterSqlite3() {
+  if (!fs.existsSync(fullSqlite)) {
+    throw new Error("postbuild: node_modules/better-sqlite3 missing — run npm install");
+  }
+
+  const targets = [path.join(outDir, "node_modules", "better-sqlite3")];
+  const nextNm = path.join(outDir, ".next", "node_modules");
+  if (fs.existsSync(nextNm)) {
+    for (const name of fs.readdirSync(nextNm)) {
+      if (name === "better-sqlite3" || name.startsWith("better-sqlite3-")) {
+        targets.push(path.join(nextNm, name));
+      }
+    }
+  }
+
+  for (const target of targets) {
+    fs.rmSync(target, { recursive: true, force: true });
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    copyRecursive(fullSqlite, target);
+    console.log(`postbuild: injected full better-sqlite3 → ${path.relative(root, target)}`);
   }
 }
 
@@ -39,12 +71,11 @@ if (!fs.existsSync(standaloneDir)) {
 }
 
 // Keep deploy secrets across rebuilds of out/
-const preservedEnv =
-  fs.existsSync(path.join(outDir, ".env"))
-    ? fs.readFileSync(path.join(outDir, ".env"))
-    : fs.existsSync(path.join(root, ".env"))
-      ? fs.readFileSync(path.join(root, ".env"))
-      : null;
+const preservedEnv = fs.existsSync(path.join(outDir, ".env"))
+  ? fs.readFileSync(path.join(outDir, ".env"))
+  : fs.existsSync(path.join(root, ".env"))
+    ? fs.readFileSync(path.join(root, ".env"))
+    : null;
 
 fs.rmSync(outDir, { recursive: true, force: true });
 fs.mkdirSync(outDir, { recursive: true });
@@ -64,8 +95,10 @@ if (fs.existsSync(publicDir)) {
   console.log("postbuild: copied public → out/public");
 }
 
+injectFullBetterSqlite3();
+
 const runtimeDockerfile = `# Serves the prebuilt Next.js standalone app already in this folder.
-# Does NOT run \`next build\` — only rebuilds the native SQLite addon for Linux.
+# Does NOT run \`next build\`. Linux native SQLite binaries are included as prebuilds.
 FROM node:22-bookworm-slim
 
 WORKDIR /app
@@ -77,7 +110,7 @@ ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
 
 RUN apt-get update \\
-  && apt-get install -y --no-install-recommends python3 make g++ ca-certificates \\
+  && apt-get install -y --no-install-recommends ca-certificates \\
   && rm -rf /var/lib/apt/lists/* \\
   && groupadd --system --gid 1001 nodejs \\
   && useradd --system --uid 1001 --gid nodejs nextjs \\
@@ -85,12 +118,6 @@ RUN apt-get update \\
   && chown nextjs:nodejs /data
 
 COPY --chown=nextjs:nodejs . .
-
-# Native module was compiled on the build machine; rebuild for this container OS/CPU.
-RUN npm rebuild better-sqlite3 \\
-  && apt-get purge -y python3 make g++ \\
-  && apt-get autoremove -y \\
-  && rm -rf /var/lib/apt/lists/*
 
 USER nextjs
 EXPOSE 3000

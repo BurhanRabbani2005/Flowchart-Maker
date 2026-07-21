@@ -1,5 +1,5 @@
 # Serves the prebuilt Next.js standalone app already in this folder.
-# Does NOT run `next build` — only rebuilds the native SQLite addon for Linux.
+# Does NOT run `next build`. Linux native SQLite binaries are included as prebuilds.
 FROM node:22-bookworm-slim
 
 WORKDIR /app
@@ -11,7 +11,7 @@ ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
 
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends python3 make g++ ca-certificates \
+  && apt-get install -y --no-install-recommends ca-certificates \
   && rm -rf /var/lib/apt/lists/* \
   && groupadd --system --gid 1001 nodejs \
   && useradd --system --uid 1001 --gid nodejs nextjs \
@@ -19,12 +19,6 @@ RUN apt-get update \
   && chown nextjs:nodejs /data
 
 COPY --chown=nextjs:nodejs . .
-
-# Native module was compiled on the build machine; rebuild for this container OS/CPU.
-RUN npm rebuild better-sqlite3 \
-  && apt-get purge -y python3 make g++ \
-  && apt-get autoremove -y \
-  && rm -rf /var/lib/apt/lists/*
 
 USER nextjs
 EXPOSE 3000
