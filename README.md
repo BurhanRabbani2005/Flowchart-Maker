@@ -26,12 +26,24 @@ Open [http://localhost:3000](http://localhost:3000). Sign in with the seeded adm
 
 Requires Traefik already running and attached to Docker network `flowdraw-network`.
 
+**From repo root** (builds the app inside Docker):
+
 ```bash
 cp .env.example .env
 # set FLOWDRAW_HOST, SESSION_SECRET, ADMIN_PASSWORD
 
 docker compose -p flowdraw-priv up -d --build
 ```
+
+**From `out/`** (prebuilt standalone committed after `npm run build`):
+
+```bash
+cd out
+cp .env.example .env   # if needed
+docker compose -p flowdraw-priv up -d --build
+```
+
+`npm run build` also runs `postbuild`, which refreshes `out/` with the full standalone server, static assets, `Dockerfile`, and `docker-compose.yml`.
 
 - Container name: `container-flowdraw-priv`
 - Volume: `flowdraw-priv-data` → `/data`

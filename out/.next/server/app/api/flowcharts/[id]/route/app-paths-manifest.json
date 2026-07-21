@@ -1,0 +1,3 @@
+{
+  "/api/flowcharts/[id]/route": "app/api/flowcharts/[id]/route.js"
+}

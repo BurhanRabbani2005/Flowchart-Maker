@@ -1,0 +1,18 @@
+{
+  "/_global-error/page": "app/_global-error/page.js",
+  "/_not-found/page": "app/_not-found/page.js",
+  "/admin/page": "app/admin/page.js",
+  "/api/auth/login/route": "app/api/auth/login/route.js",
+  "/api/auth/logout/route": "app/api/auth/logout/route.js",
+  "/api/auth/me/route": "app/api/auth/me/route.js",
+  "/api/flowcharts/[id]/lock/route": "app/api/flowcharts/[id]/lock/route.js",
+  "/api/flowcharts/[id]/revisions/[revisionId]/route": "app/api/flowcharts/[id]/revisions/[revisionId]/route.js",
+  "/api/flowcharts/[id]/revisions/route": "app/api/flowcharts/[id]/revisions/route.js",
+  "/api/flowcharts/[id]/route": "app/api/flowcharts/[id]/route.js",
+  "/api/flowcharts/route": "app/api/flowcharts/route.js",
+  "/api/users/[id]/route": "app/api/users/[id]/route.js",
+  "/api/users/route": "app/api/users/route.js",
+  "/editor/[id]/page": "app/editor/[id]/page.js",
+  "/login/page": "app/login/page.js",
+  "/page": "app/page.js"
+}

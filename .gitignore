@@ -15,10 +15,6 @@
 
 # next.js
 /.next/
-# Keep Docker deploy files in out/; ignore other build artifacts there
-/out/*
-!/out/Dockerfile
-!/out/docker-compose.yml
 
 # production
 /build
@@ -42,6 +38,7 @@ yarn-error.log*
 
 # local self-hosted data
 /data
+/out/data
 
 # vercel
 .vercel
@@ -49,3 +46,4 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+/out/public/google*.html
