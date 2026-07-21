@@ -1,5 +1,5 @@
-# Runtime image for the prebuilt standalone app in this folder.
-# Rebuilds better-sqlite3 for the container CPU/OS.
+# Serves the prebuilt Next.js standalone app already in this folder.
+# Does NOT run `next build` — only rebuilds the native SQLite addon for Linux.
 FROM node:22-bookworm-slim
 
 WORKDIR /app
@@ -20,6 +20,7 @@ RUN apt-get update \
 
 COPY --chown=nextjs:nodejs . .
 
+# Native module was compiled on the build machine; rebuild for this container OS/CPU.
 RUN npm rebuild better-sqlite3 \
   && apt-get purge -y python3 make g++ \
   && apt-get autoremove -y \

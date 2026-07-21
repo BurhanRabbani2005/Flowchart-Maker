@@ -19,6 +19,14 @@ if (!fs.existsSync(standaloneDir)) {
   process.exit(1);
 }
 
+// Keep deploy secrets across rebuilds of out/
+const preservedEnv =
+  fs.existsSync(path.join(outDir, ".env"))
+    ? fs.readFileSync(path.join(outDir, ".env"))
+    : fs.existsSync(path.join(root, ".env"))
+      ? fs.readFileSync(path.join(root, ".env"))
+      : null;
+
 fs.rmSync(outDir, { recursive: true, force: true });
 fs.mkdirSync(outDir, { recursive: true });
 
@@ -37,8 +45,8 @@ if (fs.existsSync(publicDir)) {
   console.log("postbuild: copied public → out/public");
 }
 
-const runtimeDockerfile = `# Runtime image for the prebuilt standalone app in this folder.
-# Rebuilds better-sqlite3 for the container CPU/OS.
+const runtimeDockerfile = `# Serves the prebuilt Next.js standalone app already in this folder.
+# Does NOT run \`next build\` — only rebuilds the native SQLite addon for Linux.
 FROM node:22-bookworm-slim
 
 WORKDIR /app
@@ -59,6 +67,7 @@ RUN apt-get update \\
 
 COPY --chown=nextjs:nodejs . .
 
+# Native module was compiled on the build machine; rebuild for this container OS/CPU.
 RUN npm rebuild better-sqlite3 \\
   && apt-get purge -y python3 make g++ \\
   && apt-get autoremove -y \\
@@ -73,18 +82,57 @@ CMD ["node", "server.js"]
 fs.writeFileSync(path.join(outDir, "Dockerfile"), runtimeDockerfile);
 console.log("postbuild: wrote out/Dockerfile");
 
-for (const file of ["docker-compose.yml", ".env.example", ".env", ".dockerignore"]) {
-  const from = path.join(root, file);
-  if (!fs.existsSync(from)) {
-    console.warn(`postbuild: skip missing ${file}`);
-    continue;
-  }
-  fs.copyFileSync(from, path.join(outDir, file));
-  console.log(`postbuild: copied ${file} → out/${file}`);
+const deployCompose = `name: flowdraw-priv
+
+services:
+  flowdraw:
+    build: .
+    container_name: container-flowdraw-priv
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      DATA_DIR: /data
+      NODE_ENV: production
+    volumes:
+      - flowdraw-priv-data:/data
+    networks:
+      - flowdraw-network
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=flowdraw-network
+      - traefik.http.routers.flowdraw-priv.rule=Host(\`\${FLOWDRAW_HOST}\`)
+      - traefik.http.routers.flowdraw-priv.entrypoints=websecure
+      - traefik.http.routers.flowdraw-priv.tls=true
+      - traefik.http.routers.flowdraw-priv.tls.certresolver=mytlschallenge
+      - traefik.http.services.flowdraw-priv.loadbalancer.server.port=3000
+
+volumes:
+  flowdraw-priv-data:
+
+networks:
+  flowdraw-network:
+    external: true
+`;
+
+fs.writeFileSync(path.join(outDir, "docker-compose.yml"), deployCompose);
+console.log("postbuild: wrote out/docker-compose.yml");
+
+if (fs.existsSync(path.join(root, ".env.example"))) {
+  fs.copyFileSync(
+    path.join(root, ".env.example"),
+    path.join(outDir, ".env.example"),
+  );
+  console.log("postbuild: copied .env.example → out/.env.example");
 }
 
-// Prefer an existing out/.env if root has none (already handled by copy above).
-// Do not exclude env from the deploy image context.
+if (preservedEnv) {
+  fs.writeFileSync(path.join(outDir, ".env"), preservedEnv);
+  console.log("postbuild: restored out/.env");
+} else {
+  console.warn("postbuild: no .env found to copy into out/");
+}
+
 fs.writeFileSync(
   path.join(outDir, ".dockerignore"),
   `.git
@@ -94,9 +142,3 @@ data
 `,
 );
 console.log("postbuild: wrote out/.dockerignore");
-
-const leakedData = path.join(outDir, "data");
-if (fs.existsSync(leakedData)) {
-  fs.rmSync(leakedData, { recursive: true, force: true });
-  console.log("postbuild: removed out/data (runtime volume only)");
-}

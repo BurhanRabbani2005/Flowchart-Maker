@@ -22,42 +22,44 @@ DATA_DIR=./data SESSION_SECRET=dev-secret-at-least-16 ADMIN_PASSWORD=admin npm r
 
 Open [http://localhost:3000](http://localhost:3000). Sign in with the seeded admin.
 
-## Docker / Traefik (stack `flowdraw-priv`)
+## Deploy on VPS (no Next.js build on the server)
 
-Requires Traefik already running and attached to Docker network `flowdraw-network`.
-
-**From repo root** (builds the app inside Docker):
+Build once on your machine (or CI), then deploy the prebuilt `out/` folder:
 
 ```bash
-cp .env.example .env
-# set FLOWDRAW_HOST, SESSION_SECRET, ADMIN_PASSWORD
+# on your computer
+npm run build          # fills out/ with standalone app + Docker files
+git add out && git commit && git push
+```
 
+On the VPS (Traefik must already be on `flowdraw-network`):
+
+```bash
+cd out                 # or clone repo and cd out
+# edit .env if needed (FLOWDRAW_HOST, SESSION_SECRET, ADMIN_*)
 docker compose -p flowdraw-priv up -d --build
 ```
 
-**From `out/`** (prebuilt standalone committed after `npm run build`):
+Docker only packages the uploaded files and runs `node server.js`. It does **not** run `next build`. The only compile step is rebuilding the SQLite native addon for Linux.
 
-```bash
-cd out
-cp .env.example .env   # if needed
-docker compose -p flowdraw-priv up -d --build
-```
-
-`npm run build` also runs `postbuild`, which refreshes `out/` with the full standalone server, static assets, `Dockerfile`, and `docker-compose.yml`.
-
-- Container name: `container-flowdraw-priv`
+- Container: `container-flowdraw-priv`
 - Volume: `flowdraw-priv-data` → `/data`
-- TLS cert resolver: `mytlschallenge`
+- Traefik cert resolver: `mytlschallenge`
 - Entrypoint: `websecure`
+
+## Optional: build from source on the VPS
+
+From the repo root (slower; runs a full Next.js build inside Docker):
+
+```bash
+docker compose -p flowdraw-priv up -d --build
+```
 
 ## Project structure
 
 ```
-src/
-  app/                  # pages + API routes
-  components/           # editor UI
-  lib/                  # auth, db, storage, locks
-  proxy.ts              # session gate (Next.js proxy)
-Dockerfile
+src/                    # app source
+out/                    # prebuilt deploy package (committed after npm run build)
+Dockerfile              # source build (repo root)
 docker-compose.yml
 ```
