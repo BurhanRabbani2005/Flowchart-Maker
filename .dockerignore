@@ -1,0 +1,15 @@
+Dockerfile
+docker-compose.yml
+.dockerignore
+.git
+.gitignore
+.next
+node_modules
+data
+out
+README.md
+LEARNING_GUIDE.md
+*.md
+.env
+.env.*
+!.env.example

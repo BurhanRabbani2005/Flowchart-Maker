@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
+import Link from "next/link";
 import type Konva from "konva";
 import { TopBar, EditorToolbar } from "@/components/Toolbar";
 import { PropertiesSidebar } from "@/components/PropertiesSidebar";
@@ -9,9 +10,15 @@ import { useEditorState } from "@/hooks/useEditorState";
 import { downloadPngFromStage } from "@/lib/exportPng";
 import {
   downloadJson,
+  FLOWCHART_FILE_VERSION,
   parseFlowchartDocument,
   serializeFlowchart,
+  type FlowchartDocument,
 } from "@/lib/flowchartFile";
+import {
+  HistoryModal,
+  type RevisionItem,
+} from "@/components/HistoryModal";
 
 const Canvas = dynamic(
   () => import("@/components/Canvas").then((mod) => mod.Canvas),
@@ -25,13 +32,32 @@ const Canvas = dynamic(
   },
 );
 
-export function Editor() {
+interface EditorProps {
+  flowchartId: string;
+  initialName: string;
+  initialDocument: FlowchartDocument;
+  readOnly: boolean;
+  lockedByUsername?: string | null;
+}
+
+export function Editor({
+  flowchartId,
+  initialName,
+  initialDocument,
+  readOnly,
+  lockedByUsername,
+}: EditorProps) {
   const stageRef = useRef<Konva.Stage | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [pngBackground, setPngBackground] = useState("#ffffff");
   const [pngTransparent, setPngTransparent] = useState(false);
   const [showInstructions, setShowInstructions] = useState(true);
-  const [fileName, setFileName] = useState("");
+  const [fileName, setFileName] = useState(initialName);
+  const [saving, setSaving] = useState(false);
+  const [saveMessage, setSaveMessage] = useState<string | null>(null);
+  const [showHistory, setShowHistory] = useState(false);
+  const [revisions, setRevisions] = useState<RevisionItem[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
 
   const {
     shapes,
@@ -66,12 +92,58 @@ export function Editor() {
     loadDocument,
   } = useEditorState();
 
+  const loadedRef = useRef(false);
+  useEffect(() => {
+    if (loadedRef.current) return;
+    loadedRef.current = true;
+    loadDocument(initialDocument);
+  }, [initialDocument, loadDocument]);
+
+  const handleSave = useCallback(async () => {
+    if (readOnly) return;
+    setSaving(true);
+    setSaveMessage(null);
+    try {
+      const document: FlowchartDocument = {
+        version: 1,
+        shapes,
+        connections,
+      };
+      const res = await fetch(`/api/flowcharts/${flowchartId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ document, name: fileName }),
+      });
+      const data = (await res.json()) as { error?: string };
+      if (!res.ok) {
+        setSaveMessage(data.error || "Save failed");
+        return;
+      }
+      setSaveMessage("Saved");
+      window.setTimeout(() => setSaveMessage(null), 2000);
+    } catch {
+      setSaveMessage("Save failed");
+    } finally {
+      setSaving(false);
+    }
+  }, [connections, fileName, flowchartId, readOnly, shapes]);
+
+  const handleSaveRef = useRef(handleSave);
+  handleSaveRef.current = handleSave;
+
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
+      if (readOnly) return;
       const tag = (e.target as HTMLElement)?.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA") return;
 
       const mod = e.ctrlKey || e.metaKey;
+
+      if (mod && e.key.toLowerCase() === "s") {
+        e.preventDefault();
+        void handleSaveRef.current();
+        return;
+      }
 
       if (mod && e.key.toLowerCase() === "c") {
         e.preventDefault();
@@ -91,7 +163,41 @@ export function Editor() {
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [copySelected, pasteClipboard, deleteSelected]);
+  }, [copySelected, pasteClipboard, deleteSelected, readOnly]);
+
+  useEffect(() => {
+    if (readOnly) return;
+
+    const release = () => {
+      void fetch(`/api/flowcharts/${flowchartId}/lock`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "release" }),
+        keepalive: true,
+      });
+    };
+
+    void fetch(`/api/flowcharts/${flowchartId}/lock`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "acquire" }),
+    });
+
+    const interval = window.setInterval(() => {
+      void fetch(`/api/flowcharts/${flowchartId}/lock`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "heartbeat" }),
+      });
+    }, 30_000);
+
+    window.addEventListener("pagehide", release);
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener("pagehide", release);
+      release();
+    };
+  }, [flowchartId, readOnly]);
 
   const resolveExportBaseName = useCallback(() => {
     const trimmed = fileName.trim();
@@ -116,8 +222,9 @@ export function Editor() {
   }, [shapes, connections, resolveExportBaseName]);
 
   const handleImportJson = useCallback(() => {
+    if (readOnly) return;
     fileInputRef.current?.click();
-  }, []);
+  }, [readOnly]);
 
   const handleFileChange = useCallback(
     async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -134,7 +241,6 @@ export function Editor() {
         const text = await file.text();
         const doc = parseFlowchartDocument(text);
         loadDocument(doc);
-        setFileName(file.name);
       } catch (err) {
         const message =
           err instanceof Error ? err.message : "Failed to import flowchart.";
@@ -144,14 +250,64 @@ export function Editor() {
     [loadDocument],
   );
 
+  const loadHistory = useCallback(async () => {
+    setHistoryLoading(true);
+    try {
+      const res = await fetch(`/api/flowcharts/${flowchartId}/revisions`);
+      if (!res.ok) return;
+      const data = (await res.json()) as { revisions: RevisionItem[] };
+      setRevisions(data.revisions);
+    } finally {
+      setHistoryLoading(false);
+    }
+  }, [flowchartId]);
+
+  const openHistory = useCallback(async () => {
+    setShowHistory(true);
+    await loadHistory();
+  }, [loadHistory]);
+
+  const restoreRevision = useCallback(
+    async (revisionId: string) => {
+      if (readOnly) return;
+      if (
+        !window.confirm(
+          "Restore this revision? Current content will be replaced and saved as a new revision.",
+        )
+      ) {
+        return;
+      }
+      const res = await fetch(`/api/flowcharts/${flowchartId}/revisions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ revisionId }),
+      });
+      const data = (await res.json()) as {
+        document?: FlowchartDocument;
+        error?: string;
+      };
+      if (!res.ok || !data.document) {
+        window.alert(data.error || "Restore failed");
+        return;
+      }
+      loadDocument(data.document);
+      setShowHistory(false);
+      setSaveMessage("Revision restored");
+      window.setTimeout(() => setSaveMessage(null), 2000);
+    },
+    [flowchartId, loadDocument, readOnly],
+  );
+
   return (
     <div className="flex h-dvh flex-col overflow-hidden bg-slate-50">
-      {/* Full-width dark top row */}
       <TopBar
         fileName={fileName}
         pngBackground={pngBackground}
         pngTransparent={pngTransparent}
         showInstructions={showInstructions}
+        readOnly={readOnly}
+        saving={saving}
+        saveMessage={saveMessage}
         onFileNameChange={setFileName}
         onPngBackgroundChange={setPngBackground}
         onPngTransparentChange={setPngTransparent}
@@ -159,7 +315,20 @@ export function Editor() {
         onDownloadPng={handleDownloadPng}
         onExportJson={handleExportJson}
         onImportJson={handleImportJson}
+        onSave={handleSave}
+        onOpenHistory={openHistory}
+        homeHref="/"
       />
+
+      {readOnly && lockedByUsername ? (
+        <div className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-center text-xs text-amber-900">
+          {lockedByUsername} is already editing this flowchart. You are in
+          read-only mode.{" "}
+          <Link href="/" className="underline">
+            Back to home
+          </Link>
+        </div>
+      ) : null}
 
       <input
         ref={fileInputRef}
@@ -169,7 +338,6 @@ export function Editor() {
         onChange={handleFileChange}
       />
 
-      {/* From row 2 down: tools + canvas | properties */}
       <div className="flex min-h-0 flex-1">
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           <EditorToolbar
@@ -178,6 +346,7 @@ export function Editor() {
             hasClipboard={hasClipboard}
             canDelete={selectedIds.length > 0 || selectedConnectionId !== null}
             snapToGrid={snapToGrid}
+            disabled={readOnly}
             onSnapToGridChange={setSnapToGrid}
             onAddShape={addShape}
             onToggleConnect={toggleConnectMode}
@@ -193,24 +362,24 @@ export function Editor() {
             <Canvas
               shapes={shapes}
               connections={connections}
-              selectedIds={selectedIds}
-              selectedConnectionId={selectedConnectionId}
-              connectFromId={connectFromId}
-              mode={mode}
+              selectedIds={readOnly ? [] : selectedIds}
+              selectedConnectionId={readOnly ? null : selectedConnectionId}
+              connectFromId={readOnly ? null : connectFromId}
+              mode={readOnly ? "select" : mode}
               showInstructions={showInstructions}
-              onSelect={selectShape}
-              onSelectConnection={selectConnection}
-              onSetSelection={setSelection}
-              onUpdateShape={updateShape}
-              onMoveSelected={moveSelectedShapes}
-              onDeleteConnection={deleteConnection}
-              onChangeConnection={updateConnection}
+              onSelect={readOnly ? () => {} : selectShape}
+              onSelectConnection={readOnly ? () => {} : selectConnection}
+              onSetSelection={readOnly ? () => {} : setSelection}
+              onUpdateShape={readOnly ? () => {} : updateShape}
+              onMoveSelected={readOnly ? () => {} : moveSelectedShapes}
+              onDeleteConnection={readOnly ? () => {} : deleteConnection}
+              onChangeConnection={readOnly ? () => {} : updateConnection}
               snapToGrid={snapToGrid}
               gridSize={gridSize}
               stageRef={stageRef}
             />
 
-            {mode === "connect" && (
+            {mode === "connect" && !readOnly && (
               <div className="pointer-events-none absolute bottom-16 left-1/2 z-10 -translate-x-1/2 rounded-full border border-teal-200 bg-teal-50 px-4 py-2 text-xs font-medium text-teal-800 shadow-sm">
                 {connectFromId
                   ? "Click a second shape to connect"
@@ -218,7 +387,7 @@ export function Editor() {
               </div>
             )}
 
-            {mode === "multiselect" && (
+            {mode === "multiselect" && !readOnly && (
               <div className="pointer-events-none absolute bottom-16 left-1/2 z-10 -translate-x-1/2 rounded-full border border-teal-200 bg-teal-50 px-4 py-2 text-xs font-medium text-teal-800 shadow-sm">
                 Click shapes to add or remove them from the selection
                 {selectedIds.length > 0
@@ -230,9 +399,9 @@ export function Editor() {
         </div>
 
         <PropertiesSidebar
-          shape={selectedShape}
-          connection={selectedConnection}
-          selectionCount={selectedIds.length}
+          shape={readOnly ? null : selectedShape}
+          connection={readOnly ? null : selectedConnection}
+          selectionCount={readOnly ? 0 : selectedIds.length}
           snapToGrid={snapToGrid}
           gridSize={gridSize}
           onSnapToGridChange={setSnapToGrid}
@@ -242,6 +411,23 @@ export function Editor() {
           onApplyConnectionStyleToAll={applyConnectionStyleToAll}
         />
       </div>
+
+      {showHistory ? (
+        <HistoryModal
+          flowchartId={flowchartId}
+          currentDocument={{
+            version: FLOWCHART_FILE_VERSION,
+            shapes,
+            connections,
+          }}
+          revisions={revisions}
+          loading={historyLoading}
+          readOnly={readOnly}
+          onClose={() => setShowHistory(false)}
+          onRestore={restoreRevision}
+          onRevisionsChange={setRevisions}
+        />
+      ) : null}
     </div>
   );
 }

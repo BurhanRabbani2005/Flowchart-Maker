@@ -1,0 +1,32 @@
+name: flowdraw-priv
+
+services:
+  flowdraw:
+    build: .
+    container_name: container-flowdraw-priv
+    restart: unless-stopped
+    environment:
+      DATA_DIR: /data
+      SESSION_SECRET: ${SESSION_SECRET}
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      NODE_ENV: production
+    volumes:
+      - flowdraw-priv-data:/data
+    networks:
+      - flowdraw-network
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=flowdraw-network
+      - traefik.http.routers.flowdraw-priv.rule=Host(`${FLOWDRAW_HOST}`)
+      - traefik.http.routers.flowdraw-priv.entrypoints=websecure
+      - traefik.http.routers.flowdraw-priv.tls=true
+      - traefik.http.routers.flowdraw-priv.tls.certresolver=mytlschallenge
+      - traefik.http.services.flowdraw-priv.loadbalancer.server.port=3000
+
+volumes:
+  flowdraw-priv-data:
+
+networks:
+  flowdraw-network:
+    external: true

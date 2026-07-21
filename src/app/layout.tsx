@@ -14,41 +14,14 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default: "FlowDraw — Free Online Flowchart Maker",
+    default: "FlowDraw",
     template: "%s | FlowDraw",
   },
-  description:
-    "100% free online flowchart maker. Create and edit flowcharts in your browser with an infinite canvas. No signup, no paywall, no ads behind a login — export JSON or PNG locally anytime.",
-  keywords: [
-    "free flowchart maker",
-    "online flowchart editor",
-    "flowchart creator",
-    "100% free",
-    "no signup",
-    "flow diagram",
-    "process map",
-    "FlowDraw",
-  ],
-  authors: [{ name: "FlowDraw" }],
-  creator: "FlowDraw",
+  description: "Self-hosted flowchart editor with shared server storage.",
   robots: {
-    index: true,
-    follow: true,
+    index: false,
+    follow: false,
   },
-  openGraph: {
-    title: "FlowDraw — Free Online Flowchart Maker",
-    description:
-      "100% free flowchart editor in your browser. No account required. Export a local copy to keep your work safe.",
-    type: "website",
-    siteName: "FlowDraw",
-  },
-  twitter: {
-    card: "summary",
-    title: "FlowDraw — Free Online Flowchart Maker",
-    description:
-      "100% free online flowchart maker. No signup. Export locally to keep your charts safe.",
-  },
-  category: "productivity",
 };
 
 export default function RootLayout({
@@ -61,9 +34,7 @@ export default function RootLayout({
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full overflow-hidden bg-slate-50 text-slate-900">
-        {children}
-      </body>
+      <body className="min-h-full bg-slate-50 text-slate-900">{children}</body>
     </html>
   );
 }

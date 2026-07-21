@@ -15,7 +15,10 @@
 
 # next.js
 /.next/
-/out/
+# Keep Docker deploy files in out/; ignore other build artifacts there
+/out/*
+!/out/Dockerfile
+!/out/docker-compose.yml
 
 # production
 /build
@@ -35,6 +38,10 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.example
+
+# local self-hosted data
+/data
 
 # vercel
 .vercel

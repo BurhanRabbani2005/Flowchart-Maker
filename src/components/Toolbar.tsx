@@ -9,6 +9,10 @@ interface TopBarProps {
   pngBackground: string;
   pngTransparent: boolean;
   showInstructions: boolean;
+  readOnly?: boolean;
+  saving?: boolean;
+  saveMessage?: string | null;
+  homeHref?: string;
   onFileNameChange: (value: string) => void;
   onPngBackgroundChange: (color: string) => void;
   onPngTransparentChange: (value: boolean) => void;
@@ -16,6 +20,8 @@ interface TopBarProps {
   onDownloadPng: () => void;
   onExportJson: () => void;
   onImportJson: () => void;
+  onSave?: () => void;
+  onOpenHistory?: () => void;
 }
 
 interface EditorToolbarProps {
@@ -24,6 +30,7 @@ interface EditorToolbarProps {
   hasClipboard: boolean;
   canDelete: boolean;
   snapToGrid: boolean;
+  disabled?: boolean;
   onSnapToGridChange: (value: boolean) => void;
   onAddShape: (type: ShapeType) => void;
   onToggleConnect: () => void;
@@ -99,6 +106,10 @@ export function TopBar({
   pngBackground,
   pngTransparent,
   showInstructions,
+  readOnly = false,
+  saving = false,
+  saveMessage = null,
+  homeHref,
   onFileNameChange,
   onPngBackgroundChange,
   onPngTransparentChange,
@@ -106,14 +117,49 @@ export function TopBar({
   onDownloadPng,
   onExportJson,
   onImportJson,
+  onSave,
+  onOpenHistory,
 }: TopBarProps) {
   return (
     <div className="flex flex-wrap items-center gap-3 bg-slate-800 px-3 py-2 text-slate-100">
-      <span className="text-sm font-semibold tracking-tight text-white">
-        FlowDraw
-      </span>
+      {homeHref ? (
+        <a
+          href={homeHref}
+          className="text-sm font-semibold tracking-tight text-white hover:text-teal-200"
+        >
+          FlowDraw
+        </a>
+      ) : (
+        <span className="text-sm font-semibold tracking-tight text-white">
+          FlowDraw
+        </span>
+      )}
 
       <div className="flex flex-wrap items-center gap-2">
+        {onSave ? (
+          <button
+            type="button"
+            onClick={onSave}
+            disabled={readOnly || saving}
+            className={fileBtn}
+            title="Save to server (⌘/Ctrl+S)"
+          >
+            {saving ? "Saving…" : "Save"}
+          </button>
+        ) : null}
+        {saveMessage ? (
+          <span className="text-xs text-teal-200">{saveMessage}</span>
+        ) : null}
+        {onOpenHistory ? (
+          <button
+            type="button"
+            onClick={onOpenHistory}
+            className={fileBtn}
+            title="View save history"
+          >
+            History
+          </button>
+        ) : null}
         <button
           type="button"
           onClick={() => onShowInstructionsChange(!showInstructions)}
@@ -161,13 +207,15 @@ export function TopBar({
           onChange={(e) => onFileNameChange(e.target.value)}
           placeholder="flowchart"
           spellCheck={false}
-          className="h-9 w-40 min-w-[8rem] rounded-md border border-slate-500 bg-slate-900 px-2.5 text-xs text-slate-100 placeholder:text-slate-500 outline-none focus:border-teal-400 sm:w-52"
-          title="Optional file name for PNG / JSON export"
+          disabled={readOnly}
+          className="h-9 w-40 min-w-[8rem] rounded-md border border-slate-500 bg-slate-900 px-2.5 text-xs text-slate-100 placeholder:text-slate-500 outline-none focus:border-teal-400 disabled:opacity-50 sm:w-52"
+          title="Flowchart name"
           aria-label="File name"
         />
         <button
           type="button"
           onClick={onImportJson}
+          disabled={readOnly}
           className={fileBtn}
           title="Import flowchart (.json)"
         >
@@ -192,6 +240,7 @@ export function EditorToolbar({
   hasClipboard,
   canDelete,
   snapToGrid,
+  disabled = false,
   onSnapToGridChange,
   onAddShape,
   onToggleConnect,
@@ -202,8 +251,8 @@ export function EditorToolbar({
   onPaste,
   onDelete,
 }: EditorToolbarProps) {
-  const canAlign = selectionCount >= 2;
-  const canDistribute = selectionCount >= 3;
+  const canAlign = !disabled && selectionCount >= 2;
+  const canDistribute = !disabled && selectionCount >= 3;
 
   return (
     <div className="border-b border-slate-200 bg-white">
@@ -217,6 +266,7 @@ export function EditorToolbar({
             type="button"
             title={`${SHAPE_LABELS[type]} — ${SHAPE_USAGE[type]}`}
             onClick={() => onAddShape(type)}
+            disabled={disabled}
             className={btn}
           >
             <ShapeIcon type={type} />
@@ -233,6 +283,7 @@ export function EditorToolbar({
           type="button"
           title="Select multiple shapes"
           onClick={onToggleMultiSelect}
+          disabled={disabled}
           className={mode === "multiselect" ? btnActive : btn}
         >
           Multi-select
@@ -241,7 +292,7 @@ export function EditorToolbar({
           type="button"
           title="Copy selected (Ctrl+C)"
           onClick={onCopy}
-          disabled={selectionCount === 0}
+          disabled={disabled || selectionCount === 0}
           className={btn}
         >
           Copy
@@ -250,7 +301,7 @@ export function EditorToolbar({
           type="button"
           title="Paste (Ctrl+V)"
           onClick={onPaste}
-          disabled={!hasClipboard}
+          disabled={disabled || !hasClipboard}
           className={btn}
         >
           Paste
@@ -258,7 +309,7 @@ export function EditorToolbar({
         <button
           type="button"
           onClick={onDelete}
-          disabled={!canDelete}
+          disabled={disabled || !canDelete}
           className={`${btn} hover:border-red-200 hover:bg-red-50 hover:text-red-700 disabled:hover:border-slate-200 disabled:hover:bg-white disabled:hover:text-slate-700`}
         >
           Delete
@@ -266,6 +317,7 @@ export function EditorToolbar({
         <button
           type="button"
           onClick={onToggleConnect}
+          disabled={disabled}
           className={mode === "connect" ? btnActive : btn}
         >
           {mode === "connect" ? "Connecting…" : "Connect"}
@@ -328,12 +380,13 @@ export function EditorToolbar({
         <div className="mx-1 h-5 w-px bg-slate-200" />
 
         <label
-          className={`${snapToGrid ? btnActive : btn} cursor-pointer`}
+          className={`${snapToGrid ? btnActive : btn} cursor-pointer ${disabled ? "pointer-events-none opacity-40" : ""}`}
           title="When on, shapes snap to the grid while moving and resizing"
         >
           <input
             type="checkbox"
             checked={snapToGrid}
+            disabled={disabled}
             onChange={(e) => onSnapToGridChange(e.target.checked)}
             className="rounded border-slate-300"
           />
