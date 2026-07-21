@@ -73,7 +73,7 @@ CMD ["node", "server.js"]
 fs.writeFileSync(path.join(outDir, "Dockerfile"), runtimeDockerfile);
 console.log("postbuild: wrote out/Dockerfile");
 
-for (const file of ["docker-compose.yml", ".env.example", ".dockerignore"]) {
+for (const file of ["docker-compose.yml", ".env.example", ".env", ".dockerignore"]) {
   const from = path.join(root, file);
   if (!fs.existsSync(from)) {
     console.warn(`postbuild: skip missing ${file}`);
@@ -83,13 +83,11 @@ for (const file of ["docker-compose.yml", ".env.example", ".dockerignore"]) {
   console.log(`postbuild: copied ${file} → out/${file}`);
 }
 
-// out/.dockerignore should not exclude the standalone contents
+// Prefer an existing out/.env if root has none (already handled by copy above).
+// Do not exclude env from the deploy image context.
 fs.writeFileSync(
   path.join(outDir, ".dockerignore"),
   `.git
-.env
-.env.*
-!.env.example
 data
 *.md
 .DS_Store
