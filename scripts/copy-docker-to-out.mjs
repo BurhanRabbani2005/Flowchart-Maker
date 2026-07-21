@@ -9,7 +9,26 @@ const publicDir = path.join(root, "public");
 
 function copyRecursive(from, to) {
   fs.mkdirSync(path.dirname(to), { recursive: true });
-  fs.cpSync(from, to, { recursive: true, force: true });
+  // Dereference symlinks — Portainer/git clone rejects repos that contain them.
+  fs.cpSync(from, to, { recursive: true, force: true, dereference: true });
+}
+
+/** Replace any leftover symlinks under dir with real file/dir copies. */
+function materializeSymlinks(dir) {
+  if (!fs.existsSync(dir)) return;
+  const entries = fs.readdirSync(dir, { withFileTypes: true });
+  for (const entry of entries) {
+    const full = path.join(dir, entry.name);
+    const st = fs.lstatSync(full);
+    if (st.isSymbolicLink()) {
+      const target = fs.realpathSync(full);
+      fs.rmSync(full, { force: true });
+      fs.cpSync(target, full, { recursive: true, force: true, dereference: true });
+      console.log(`postbuild: materialized symlink ${path.relative(root, full)}`);
+      continue;
+    }
+    if (st.isDirectory()) materializeSymlinks(full);
+  }
 }
 
 if (!fs.existsSync(standaloneDir)) {
@@ -142,3 +161,6 @@ data
 `,
 );
 console.log("postbuild: wrote out/.dockerignore");
+
+materializeSymlinks(outDir);
+console.log("postbuild: ensured out/ has no symlinks");
