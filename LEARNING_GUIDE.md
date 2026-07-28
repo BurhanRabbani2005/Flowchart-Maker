@@ -125,13 +125,28 @@ src/
 
 ## TypeScript cheat sheet used in this repo
 
+### `export` keywords (read this first)
+
+| You write | What it is | Exists when the app runs? | How other files import it |
+|-----------|------------|---------------------------|---------------------------|
+| `export type Foo = ...` | A **type name** (rules for data) | No — erased | `import type { Foo }` or `import { type Foo }` |
+| `export interface Foo { }` | A **type** for objects | No — erased | same as type |
+| `export const FOO = ...` | A **real value** (number, object, …) | Yes | `import { FOO }` |
+| `export function foo()` | A **real function** | Yes | `import { foo }` |
+| `export default function` | The **main** export of a file | Yes | `import Anything from "./file"` (no `{ }`) |
+
+**Memory trick:**  
+`type` / `interface` = labels for the compiler.  
+`const` / `function` = real stuff JavaScript keeps.
+
+### Other syntax
+
 | Syntax | Meaning (plain English) |
 |--------|-------------------------|
 | `name: string` | This value must be a string |
 | `id?: string` | Optional — might be missing |
 | `"a" \| "b"` | Must be exactly `"a"` or `"b"` |
 | `FlowShape \| null` | A shape, or nothing |
-| `interface Foo { ... }` | Blueprint for an object |
 | `Partial<FlowShape>` | Any subset of FlowShape fields |
 | `Record<ShapeType, string>` | Object map: every shape type → a string |
 | `value is FlowShape` | Type guard: after `true`, TS treats value as FlowShape |

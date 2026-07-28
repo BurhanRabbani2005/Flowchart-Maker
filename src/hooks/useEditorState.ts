@@ -1,11 +1,19 @@
 /**
- * Custom React hook: all editor "app state" lives here.
+ * ============================================================
+ * useEditorState — the "brain" of the flowchart editor
+ * ============================================================
  *
- * `"use client"` (Next.js): this module runs in the browser.
- * Hooks like useState only work in client components.
+ * `export function useEditorState()`
+ *   A custom React HOOK. Hooks are functions whose names start with `use`.
+ *   This one stores all editor data and returns functions to change it.
  *
- * If you know JS variables: useState is a variable that
- * tells React "please re-render when this value changes."
+ * `"use client"`
+ *   Next.js marker: this file runs in the BROWSER (needs useState, clicks, etc.).
+ *
+ * Think of useState like a special variable:
+ *   const [shapes, setShapes] = useState([])
+ *   - shapes     → current value (read it)
+ *   - setShapes  → function to change it (React then re-draws the UI)
  */
 "use client";
 
@@ -28,18 +36,20 @@ import {
   type ToolMode,
 } from "@/types";
 
-/** What we store when the user copies shapes. */
+/** Private blueprint: what we keep when the user presses Copy. */
 interface ClipboardPayload {
   shapes: FlowShape[];
   connections: Connection[];
 }
 
+/** How far to shift pasted shapes so they don't sit exactly on top. */
 const PASTE_OFFSET = 24;
 
 /**
- * Fill in missing connection fields with defaults.
- * `??` (nullish coalescing): use the right side only if left is null/undefined.
- * (`||` would also replace `0` or `""`, which we usually don't want for numbers.)
+ * WHAT IT DOES:
+ *   Fill missing connection fields with defaults.
+ *   `??` = use the right side only if left is null or undefined
+ *   (unlike `||`, it will NOT replace 0 or "").
  */
 function normalizeConnection(connection: Connection): Connection {
   return {
@@ -53,23 +63,30 @@ function normalizeConnection(connection: Connection): Connection {
   };
 }
 
+/**
+ * WHAT IT RETURNS:
+ *   An object full of state values + updater functions.
+ *   Editor.tsx calls this once and wires buttons/canvas to those functions.
+ */
 export function useEditorState() {
-  // Generic syntax: useState<FlowShape[]>([]) means "array of FlowShape".
+  // useState<Type>(initialValue) — Type is what goes inside the state.
   const [shapes, setShapes] = useState<FlowShape[]>([]);
   const [connections, setConnections] = useState<Connection[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  // string | null = either a connection id, or nothing selected.
+  // null means "no connector selected"
   const [selectedConnectionId, setSelectedConnectionId] = useState<
     string | null
   >(null);
   const [mode, setMode] = useState<ToolMode>("select");
+  // While connecting: id of the first shape you clicked (or null)
   const [connectFromId, setConnectFromId] = useState<string | null>(null);
   const [hasClipboard, setHasClipboard] = useState(false);
   const [snapToGrid, setSnapToGrid] = useState(false);
   const [gridSize, setGridSize] = useState(DEFAULT_GRID_SIZE);
-  // useRef stores a value that survives re-renders WITHOUT causing a re-render.
+  // useRef: store clipboard without re-rendering when it changes
   const clipboardRef = useRef<ClipboardPayload | null>(null);
 
+  // Derived values (not separate state): compute from shapes + selection.
   const selectedShape =
     selectedIds.length === 1
       ? (shapes.find((s) => s.id === selectedIds[0]) ?? null)
@@ -81,13 +98,13 @@ export function useEditorState() {
       : null;
 
   /**
-   * useCallback memorizes a function so child components don't re-create
-   * it every render (helps with performance / dependency arrays).
-   * The `[snapToGrid, gridSize]` list = "recreate if these change."
+   * WHAT IT DOES: create a new shape and select it.
+   * useCallback(...) remembers the function between renders.
+   * Dependency array [snapToGrid, gridSize]: recreate if those change.
    */
   const addShape = useCallback(
     (type: ShapeType) => {
-      // Functional update: setShapes(prev => ...) uses the latest array safely.
+      // setShapes(prev => ...) always sees the latest array (safe in React).
       setShapes((prev) => {
         const offset = prev.length * 24;
         const shape = createShape(
@@ -98,7 +115,7 @@ export function useEditorState() {
           gridSize,
         );
         setSelectedIds([shape.id]);
-        return [...prev, shape]; // new array = React sees a change
+        return [...prev, shape]; // new array → React re-renders
       });
       setSelectedConnectionId(null);
       setMode("select");
@@ -107,6 +124,10 @@ export function useEditorState() {
     [snapToGrid, gridSize],
   );
 
+  /**
+   * WHAT IT DOES: nudge every selected shape by dx, dy pixels
+   * (used when dragging multiple shapes together).
+   */
   const moveSelectedShapes = useCallback(
     (dx: number, dy: number) => {
       if ((dx === 0 && dy === 0) || selectedIds.length === 0) return;
@@ -122,7 +143,11 @@ export function useEditorState() {
     [selectedIds],
   );
 
-  // Partial<FlowShape> = any subset of fields (e.g. only { fill: "#fff" }).
+  /**
+   * WHAT IT DOES: patch one shape.
+   * Partial<FlowShape> means updates can be { fill: "#fff" } only —
+   * you do not need to pass the whole shape.
+   */
   const updateShape = useCallback(
     (id: string, updates: Partial<FlowShape>) => {
       setShapes((prev) =>
@@ -134,6 +159,7 @@ export function useEditorState() {
     [],
   );
 
+  /** WHAT IT DOES: change fields on one connector (color, width, …). */
   const updateConnection = useCallback(
     (id: string, updates: Partial<Connection>) => {
       setConnections((prev) =>
@@ -145,6 +171,10 @@ export function useEditorState() {
     [],
   );
 
+  /**
+   * WHAT IT DOES: copy stroke/width/opacity/orthogonal from the
+   * selected connector onto EVERY connector.
+   */
   const applyConnectionStyleToAll = useCallback(() => {
     if (!selectedConnectionId) return;
     setConnections((prev) => {
@@ -160,16 +190,23 @@ export function useEditorState() {
     });
   }, [selectedConnectionId]);
 
+  /** WHAT IT DOES: select many shapes at once (marquee / multi-select). */
   const setSelection = useCallback((ids: string[]) => {
     setSelectedIds(ids);
     setSelectedConnectionId(null);
   }, []);
 
+  /** WHAT IT DOES: select a connector line (clears shape selection). */
   const selectConnection = useCallback((id: string | null) => {
     setSelectedConnectionId(id);
     if (id) setSelectedIds([]);
   }, []);
 
+  /**
+   * WHAT IT DOES: Delete key behavior.
+   * If a connector is selected → remove it.
+   * Else remove selected shapes AND any lines attached to them.
+   */
   const deleteSelected = useCallback(() => {
     if (selectedConnectionId) {
       setConnections((prev) =>
@@ -191,11 +228,19 @@ export function useEditorState() {
     }
   }, [selectedIds, selectedConnectionId, connectFromId]);
 
+  /** WHAT IT DOES: remove one connector by id (e.g. click the × on a line). */
   const deleteConnection = useCallback((id: string) => {
     setConnections((prev) => prev.filter((c) => c.id !== id));
     setSelectedConnectionId((prev) => (prev === id ? null : prev));
   }, []);
 
+  /**
+   * WHAT IT DOES: handle clicking a shape.
+   * Behavior depends on mode:
+   *   - connect: first click = start, second click = create Connection
+   *   - multiselect / Shift: toggle id in/out of selectedIds
+   *   - normal: select just this shape (or clear if id is null)
+   */
   const selectShape = useCallback(
     (id: string | null, additive = false) => {
       setSelectedConnectionId(null);

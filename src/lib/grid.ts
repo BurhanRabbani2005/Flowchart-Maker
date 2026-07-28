@@ -1,22 +1,48 @@
 /**
- * Grid snapping utilities.
- * These are plain functions (no React) — easy to reuse and test.
+ * ============================================================
+ * grid.ts — snap positions to a grid
+ * ============================================================
+ *
+ * "Snap to grid" means: when you move a shape, its position
+ * jumps to neat multiples of e.g. 24px instead of landing at 37.2px.
  */
 import type { FlowShape } from "@/types";
 import { DEFAULT_GRID_SIZE } from "@/types";
 
+/**
+ * `export const GRID_SIZE = ...`
+ * A shared number other files can import.
+ * Same as: export const GRID_SIZE = 24; (via DEFAULT_GRID_SIZE)
+ */
 export const GRID_SIZE = DEFAULT_GRID_SIZE;
 
 /**
- * Round a number to the nearest multiple of `gridSize`.
- * Example: snapToGrid(50, 24) → 48
+ * WHAT IT DOES:
+ *   Round one number to the nearest grid multiple.
+ *
+ * EXAMPLE:
+ *   snapToGrid(50, 24) → 48
+ *   because 50/24 ≈ 2.08 → round to 2 → 2*24 = 48
+ *
+ * RETURN TYPE `: number` means this function always gives back a number.
  */
 export function snapToGrid(value: number, gridSize = GRID_SIZE): number {
+  // Never allow a grid smaller than 4px (safety clamp).
   const size = Math.max(4, gridSize);
   return Math.round(value / size) * size;
 }
 
-/** Snap a shape so its center lands on the grid. */
+/**
+ * WHAT IT DOES:
+ *   Given a shape's top-left (x,y) and size, compute a NEW top-left
+ *   so the SHAPE'S CENTER sits on a grid intersection.
+ *
+ * WHY CENTER?
+ *   Snapping by the corner can look uneven for different widths.
+ *   Centering feels more natural when aligning boxes.
+ *
+ * RETURNS: a small object `{ x, y }` (anonymous object type).
+ */
 export function snapPositionByCenter(
   x: number,
   y: number,
@@ -24,9 +50,9 @@ export function snapPositionByCenter(
   height: number,
   gridSize = GRID_SIZE,
 ): { x: number; y: number } {
-  // Return type `{ x: number; y: number }` is an anonymous object type.
   const centerX = snapToGrid(x + width / 2, gridSize);
   const centerY = snapToGrid(y + height / 2, gridSize);
+  // Convert center back to top-left for storage on FlowShape.
   return {
     x: centerX - width / 2,
     y: centerY - height / 2,
@@ -34,19 +60,27 @@ export function snapPositionByCenter(
 }
 
 /**
- * Returns a NEW array of shapes (does not mutate the original).
- * In React, we prefer creating new arrays/objects so React can detect changes.
+ * WHAT IT DOES:
+ *   Take the full shapes array + a list of selected ids.
+ *   Return a NEW array where selected shapes are grid-snapped.
+ *   Unselected shapes are copied through unchanged.
  *
- * `Set` is a built-in JS collection for fast "is this id selected?" checks.
+ * IMPORTANT REACT IDEA:
+ *   We do NOT edit shapes in place (no shape.x = ...).
+ *   We return new objects so React notices "data changed → redraw."
+ *
+ * `FlowShape[]` means "array of FlowShape".
+ * `string[]` means "array of strings" (the selected ids).
  */
 export function snapShapesToGrid(
   shapes: FlowShape[],
   ids: string[],
   gridSize = GRID_SIZE,
 ): FlowShape[] {
+  // Set = fast membership test: idSet.has("abc") → true/false
   const idSet = new Set(ids);
   return shapes.map((shape) => {
-    if (!idSet.has(shape.id)) return shape;
+    if (!idSet.has(shape.id)) return shape; // leave this one alone
     const pos = snapPositionByCenter(
       shape.x,
       shape.y,
@@ -54,7 +88,7 @@ export function snapShapesToGrid(
       shape.height,
       gridSize,
     );
-    // Spread operator `{ ...shape, ...pos }` copies shape, then overwrites x/y.
+    // Spread copy: keep all fields, then overwrite x and y from pos.
     return { ...shape, ...pos };
   });
 }

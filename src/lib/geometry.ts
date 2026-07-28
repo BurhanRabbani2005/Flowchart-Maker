@@ -1,13 +1,24 @@
 /**
- * Geometry helpers for shapes and connector routing.
- * Lots of x/y math — still just JavaScript numbers, with TypeScript labels.
+ * ============================================================
+ * geometry.ts — math for shape outlines and connector paths
+ * ============================================================
+ *
+ * Most functions here take numbers (x, y, width, height) and
+ * return points or flat arrays like [x1, y1, x2, y2, ...] for Konva.
+ *
+ * `export type { CardinalDir }`
+ *   Re-exports a type from @/types so other files can import it from here.
+ *   Still type-only — no runtime value.
  */
 import type { CardinalDir, Connection, FlowShape } from "@/types";
 
 /** Re-export so other files can import CardinalDir from geometry if they want. */
 export type { CardinalDir };
 
-/** Center point of a shape's bounding box. */
+/**
+ * WHAT IT DOES: return the center point of a shape's bounding box.
+ * Example: shape at (0,0) size 100×40 → center (50, 20).
+ */
 export function getShapeCenter(shape: FlowShape): { x: number; y: number } {
   return {
     x: shape.x + shape.width / 2,

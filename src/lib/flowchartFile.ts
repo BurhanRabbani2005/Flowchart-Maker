@@ -1,21 +1,32 @@
 /**
- * Save / load flowchart files as JSON.
+ * ============================================================
+ * flowchartFile.ts — save / load .json flowchart files
+ * ============================================================
  *
- * Important TypeScript idea here: when you read a file from disk,
- * TypeScript does NOT trust it. The data starts as `unknown`,
- * and we use "type guards" to prove it is safe before using it.
+ * Big idea:
+ *   JSON from disk is untrusted. TypeScript starts it as `unknown`.
+ *   We check field-by-field ("type guards") before using it as FlowShape.
  */
 import type { Connection, FlowShape, ShapeType } from "@/types";
 
+/**
+ * `export const FLOWCHART_FILE_VERSION = 1`
+ * A real number stored in every saved file.
+ * If the format changes later, you can bump this and migrate old files.
+ */
 export const FLOWCHART_FILE_VERSION = 1;
 
-/** The on-disk format of a saved flowchart. */
+/**
+ * `export interface FlowchartDocument`
+ * The exact shape of a saved file: version + shapes array + connections array.
+ */
 export interface FlowchartDocument {
   version: number;
   shapes: FlowShape[];
   connections: Connection[];
 }
 
+/** Private list used only to validate shape type strings from JSON. */
 const SHAPE_TYPES: ShapeType[] = [
   "rectangle",
   "roundedRect",
@@ -26,18 +37,26 @@ const SHAPE_TYPES: ShapeType[] = [
 ];
 
 /**
- * Type predicate: `value is ShapeType`
- * If this function returns true, TypeScript treats `value` as a ShapeType afterward.
- * (`unknown` = "we don't know the type yet" — safer than `any`.)
+ * WHAT IT DOES:
+ *   Is this unknown value one of our allowed shape type strings?
+ *
+ * SPECIAL RETURN TYPE: `value is ShapeType`
+ *   This is a "type predicate".
+ *   If the function returns true, TypeScript treats `value` as ShapeType
+ *   in the code that follows. That is smarter than returning a plain boolean.
  */
 function isShapeType(value: unknown): value is ShapeType {
   return typeof value === "string" && SHAPE_TYPES.includes(value as ShapeType);
 }
 
-/** Runtime check that a parsed object looks like a FlowShape. */
+/**
+ * WHAT IT DOES:
+ *   Check that a parsed JSON object has all required FlowShape fields
+ *   with the right JavaScript typeof results (string, number, …).
+ */
 function isFlowShape(value: unknown): value is FlowShape {
   if (!value || typeof value !== "object") return false;
-  // Cast: "treat this object as a dictionary of unknown values."
+  // Cast: treat as a bag of unknown properties so we can inspect each one.
   const s = value as Record<string, unknown>;
   return (
     typeof s.id === "string" &&
@@ -55,6 +74,10 @@ function isFlowShape(value: unknown): value is FlowShape {
   );
 }
 
+/**
+ * WHAT IT DOES:
+ *   Older files might omit opacity. Clamp it to 0–1 and default to 1.
+ */
 function normalizeShape(shape: FlowShape): FlowShape {
   const opacity =
     typeof shape.opacity === "number"
@@ -63,6 +86,7 @@ function normalizeShape(shape: FlowShape): FlowShape {
   return { ...shape, opacity };
 }
 
+/** Same idea as isFlowShape, but for connection objects. */
 function isConnection(value: unknown): value is Connection {
   if (!value || typeof value !== "object") return false;
   const c = value as Record<string, unknown>;
@@ -95,6 +119,11 @@ function isConnection(value: unknown): value is Connection {
   );
 }
 
+/**
+ * WHAT IT DOES:
+ *   Wrap shapes + connections into the official file object
+ *   (adds the version number).
+ */
 export function createFlowchartDocument(
   shapes: FlowShape[],
   connections: Connection[],
@@ -106,16 +135,26 @@ export function createFlowchartDocument(
   };
 }
 
+/**
+ * WHAT IT DOES:
+ *   Turn the document into a pretty-printed JSON string for download.
+ *   `JSON.stringify(value, null, 2)` → indent with 2 spaces (readable file).
+ */
 export function serializeFlowchart(
   shapes: FlowShape[],
   connections: Connection[],
 ): string {
-  // JSON.stringify is the same JS API; third arg `2` pretty-prints with indentation.
   return JSON.stringify(createFlowchartDocument(shapes, connections), null, 2);
 }
 
+/**
+ * WHAT IT DOES:
+ *   Parse a JSON string from an imported file.
+ *   Validate structure; throw Error with a clear message if invalid.
+ *   Return a FlowchartDocument the editor can load.
+ */
 export function parseFlowchartDocument(raw: string): FlowchartDocument {
-  // Start as `unknown` — we validate before trusting the data.
+  // unknown = "we have not proven what this is yet"
   let data: unknown;
   try {
     data = JSON.parse(raw);
@@ -149,6 +188,11 @@ export function parseFlowchartDocument(raw: string): FlowchartDocument {
   };
 }
 
+/**
+ * WHAT IT DOES:
+ *   Trigger a browser download of a .json text file.
+ *   Uses Blob + temporary <a download> (plain browser JS pattern).
+ */
 export function downloadJson(filename: string, contents: string) {
   const blob = new Blob([contents], { type: "application/json" });
   const url = URL.createObjectURL(blob);

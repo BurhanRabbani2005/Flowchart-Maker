@@ -1,8 +1,15 @@
 /**
- * Main editor shell: top bar + toolbar + canvas + properties panel.
+ * ============================================================
+ * Editor.tsx — main screen layout (wires everything together)
+ * ============================================================
  *
- * Think of this as the "page controller" that wires UI events
- * to the state hook (`useEditorState`) and the canvas.
+ * WHAT THIS FILE DOES:
+ *   - Holds a few UI-only pieces of state (filename, PNG bg, instructions)
+ *   - Calls useEditorState() for the real flowchart data
+ *   - Renders TopBar + Toolbar + Canvas + PropertiesSidebar
+ *   - Handles keyboard shortcuts and file import/export
+ *
+ * `export function Editor()` is a NAMED export (import { Editor } from "...").
  */
 "use client";
 
@@ -20,7 +27,7 @@ import {
 } from "@/lib/flowchartFile";
 
 /**
- * dynamic() loads Canvas only in the browser.
+ * `dynamic()` loads Canvas only in the browser.
  * Konva needs `window`, so we disable server-side rendering (`ssr: false`).
  * `.then((mod) => mod.Canvas)` picks the named export from the module.
  */

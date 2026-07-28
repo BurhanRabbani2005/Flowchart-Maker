@@ -1,11 +1,26 @@
 /**
- * Turn the Konva stage (canvas) into a downloadable PNG file.
+ * ============================================================
+ * exportPng.ts — download the canvas as a PNG image
+ * ============================================================
  */
 import Konva from "konva";
 
 /**
- * Union type in a parameter: `string | null`
- * means "a string OR null" (no background when transparent export is chosen).
+ * `export function downloadPngFromStage(...)`
+ *
+ * WHAT IT DOES (step by step):
+ *   1. Optionally draw a temporary background rectangle (white, etc.)
+ *   2. Ask Konva for a PNG data URL (a long "data:image/png;base64,..." string)
+ *   3. Remove the temporary background
+ *   4. Create a fake <a download="file.png"> link and click it
+ *      → the browser saves the file
+ *
+ * PARAMETERS:
+ *   stage            → the Konva Stage (the whole canvas)
+ *   filename         → e.g. "flowchart.png"
+ *   backgroundColor  → string like "#ffffff", OR null for transparent PNG
+ *
+ * `string | null` is a UNION TYPE: value is a string OR null (nothing).
  */
 export function downloadPngFromStage(
   stage: Konva.Stage,
@@ -13,11 +28,11 @@ export function downloadPngFromStage(
   backgroundColor: string | null,
 ) {
   const layer = stage.getLayers()[0];
-  // `| null` variables often start as null, then get assigned later.
+  // Start as null; may become a Rect if we need a background.
   let bg: Konva.Rect | null = null;
 
   if (backgroundColor && layer) {
-    // Convert screen coordinates back to "world" coordinates using zoom/pan.
+    // Undo pan/zoom so the background covers the visible world area.
     const scale = stage.scaleX() || 1;
     const x = -stage.x() / scale;
     const y = -stage.y() / scale;
@@ -30,24 +45,24 @@ export function downloadPngFromStage(
       width,
       height,
       fill: backgroundColor,
-      listening: false,
+      listening: false, // don't steal mouse events
       name: "__export_bg",
     });
     layer.add(bg);
-    bg.moveToBottom();
+    bg.moveToBottom(); // sit behind shapes
     layer.batchDraw();
   }
 
-  // Data URL = a long string starting with "data:image/png;base64,..."
+  // pixelRatio: 2 = sharper image on retina screens
   const uri = stage.toDataURL({ pixelRatio: 2 });
 
-  // Clean up the temporary background so it doesn't stay on the live canvas.
+  // Always clean up so the live editor does not keep the export background.
   if (bg) {
     bg.destroy();
-    layer?.batchDraw(); // `?.` = optional chaining: call only if layer exists
+    layer?.batchDraw(); // `?.` = only call if layer is not null/undefined
   }
 
-  // Classic browser download trick: create a temporary <a download> link and click it.
+  // Same download trick you can use in plain browser JavaScript.
   const link = document.createElement("a");
   link.download = filename;
   link.href = uri;

@@ -1,7 +1,13 @@
 /**
- * Root layout wraps EVERY page in the app (like a shared HTML shell).
- * In plain HTML you'd write <html> and <body> yourself once.
- * In Next.js App Router, this file does that job.
+ * ============================================================
+ * layout.tsx — shared HTML shell for every page
+ * ============================================================
+ *
+ * Like writing <html> and <body> once for the whole site.
+ * `{children}` is whatever page is currently shown (e.g. page.tsx).
+ *
+ * `export const metadata` — Next.js reads this object for <title>, SEO, etc.
+ * `export default function RootLayout` — the layout component itself.
  */
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
@@ -19,8 +25,9 @@ const geistMono = Geist_Mono({
 });
 
 /**
- * `Metadata` is a TypeScript type from Next.js.
- * Typing this object helps catch typos in SEO fields at edit time.
+ * `export const metadata: Metadata = { ... }`
+ * - export const → real object Next uses at build time
+ * - `: Metadata` → must match Next's Metadata type (catches typos)
  */
 export const metadata: Metadata = {
   title: {

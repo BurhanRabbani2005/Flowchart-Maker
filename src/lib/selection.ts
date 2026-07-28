@@ -1,9 +1,18 @@
 /**
- * Helpers for marquee (drag-box) selection on the canvas.
+ * ============================================================
+ * selection.ts — marquee (drag-box) selection math
+ * ============================================================
+ *
+ * When you click empty canvas and drag, you draw a rectangle.
+ * These helpers turn that gesture into "which shape ids are inside?"
  */
 import type { FlowShape } from "@/types";
 
-/** A rectangle described by top-left corner + size (not two corners). */
+/**
+ * `export interface SelectionRect`
+ * Blueprint for the selection box: top-left + width/height.
+ * (Not two opposite corners — we normalize to this form first.)
+ */
 export interface SelectionRect {
   x: number;
   y: number;
@@ -12,8 +21,14 @@ export interface SelectionRect {
 }
 
 /**
- * Users can drag the selection box in any direction.
- * This normalizes two points into a proper top-left + positive width/height.
+ * WHAT IT DOES:
+ *   You might drag from bottom-right to top-left.
+ *   Math.min / Math.abs turn any two corners into:
+ *   - x,y = top-left
+ *   - width/height = always positive
+ *
+ * INPUT: two points (x1,y1) and (x2,y2)
+ * OUTPUT: a SelectionRect
  */
 export function normalizeRect(
   x1: number,
@@ -31,12 +46,17 @@ export function normalizeRect(
   };
 }
 
-/** True when the shape is fully inside the selection rectangle. */
+/**
+ * WHAT IT DOES:
+ *   Return true if the whole shape sits inside the selection rectangle.
+ *   (Not just touching — fully inside.)
+ *
+ * `: boolean` = return type is true or false.
+ */
 export function isShapeFullyInside(
   shape: FlowShape,
   rect: SelectionRect,
 ): boolean {
-  // Return type `: boolean` documents that this is a yes/no function.
   return (
     shape.x >= rect.x &&
     shape.y >= rect.y &&
@@ -46,8 +66,13 @@ export function isShapeFullyInside(
 }
 
 /**
- * `.filter(...).map(...)` is the same chaining pattern as in JavaScript.
- * TypeScript just knows the result is `string[]` because `.id` is a string.
+ * WHAT IT DOES:
+ *   From all shapes, keep only those fully inside `rect`,
+ *   then return just their id strings.
+ *
+ * SAME AS JS:
+ *   shapes.filter(...).map(s => s.id)
+ * TypeScript knows the result type is string[] automatically.
  */
 export function idsFullyInsideRect(
   shapes: FlowShape[],

@@ -1,9 +1,21 @@
 /**
- * Align and distribute selected shapes.
- * Pure functions: input shapes → output new shapes array (no DOM / React here).
+ * ============================================================
+ * align.ts — line up shapes / space them evenly
+ * ============================================================
+ *
+ * Pure functions = no React, no DOM.
+ * Input: shapes array + selected ids + direction
+ * Output: a NEW shapes array with some x/y changed
  */
 import type { FlowShape } from "@/types";
 
+/**
+ * `export type AlignDirection = "left" | "right" | ...`
+ *
+ * Reminder: `export type` creates a TYPE name other files can import.
+ * It is NOT a runtime value. You cannot loop over AlignDirection.
+ * The toolbar passes one of these strings into alignShapes().
+ */
 export type AlignDirection =
   | "left"
   | "right"
@@ -11,17 +23,27 @@ export type AlignDirection =
   | "bottom"
   | "centerH"
   | "centerV";
+
+/** Only two options for distribute: left-right or up-down. */
 export type DistributeAxis = "horizontal" | "vertical";
 
-/** Pick only the shapes whose ids are in the selection list. */
+/**
+ * NOT exported — private helper for this file only.
+ * WHAT IT DOES: from all shapes, keep only those whose id is selected.
+ */
 function selectedShapes(shapes: FlowShape[], ids: string[]): FlowShape[] {
   const idSet = new Set(ids);
   return shapes.filter((s) => idSet.has(s.id));
 }
 
 /**
- * Align selected shapes. Returns the full shapes list with some x/y updated.
- * `switch` + typed union means TypeScript can warn if you forget a case.
+ * `export function alignShapes(...)`
+ *
+ * WHAT IT DOES:
+ *   Move selected shapes so they share an edge or center line.
+ *   Example "left": every selected shape gets the same x as the leftmost one.
+ *
+ * Needs at least 2 selected shapes; otherwise returns the input unchanged.
  */
 export function alignShapes(
   shapes: FlowShape[],
@@ -35,13 +57,15 @@ export function alignShapes(
 
   switch (direction) {
     case "left": {
-      // Spread `...targets.map` into Math.min — same as Math.min(a, b, c, ...)
+      // Find the smallest x among selected shapes.
       const value = Math.min(...targets.map((s) => s.x));
+      // For each shape: if selected, set x; else leave alone.
       return shapes.map((s) =>
         idSet.has(s.id) ? { ...s, x: value } : s,
       );
     }
     case "right": {
+      // Align right edges: x + width should match the rightmost edge.
       const value = Math.max(...targets.map((s) => s.x + s.width));
       return shapes.map((s) =>
         idSet.has(s.id) ? { ...s, x: value - s.width } : s,
@@ -59,7 +83,7 @@ export function alignShapes(
         idSet.has(s.id) ? { ...s, y: value - s.height } : s,
       );
     }
-    // Mid H: centers line up on a horizontal line (same center Y)
+    // Mid H: same vertical center (centers sit on one horizontal line)
     case "centerH": {
       const avgCy =
         targets.reduce((sum, s) => sum + s.y + s.height / 2, 0) /
@@ -68,7 +92,7 @@ export function alignShapes(
         idSet.has(s.id) ? { ...s, y: avgCy - s.height / 2 } : s,
       );
     }
-    // Mid V: centers line up on a vertical line (same center X)
+    // Mid V: same horizontal center (centers sit on one vertical line)
     case "centerV": {
       const avgCx =
         targets.reduce((sum, s) => sum + s.x + s.width / 2, 0) /
@@ -81,8 +105,12 @@ export function alignShapes(
 }
 
 /**
- * Space shapes evenly along an axis. Needs at least 3 shapes.
- * `Map<string, number>` stores "shape id → new position".
+ * WHAT IT DOES:
+ *   Spread 3+ shapes so gaps between them are equal.
+ *   Horizontal: even space left-to-right (first/last stay put).
+ *   Vertical: even space top-to-bottom.
+ *
+ * `Map<string, number>` = dictionary from shape id → new x or y.
  */
 export function distributeShapes(
   shapes: FlowShape[],
@@ -95,7 +123,7 @@ export function distributeShapes(
   const idSet = new Set(ids);
 
   if (axis === "horizontal") {
-    // Copy before sorting so we don't mutate the original array order.
+    // [...targets] copies the array so .sort does not reorder the original.
     const sorted = [...targets].sort((a, b) => a.x - b.x);
     const first = sorted[0];
     const last = sorted[sorted.length - 1];
@@ -111,14 +139,15 @@ export function distributeShapes(
     }
 
     return shapes.map((s) =>
-      // The `!` after get() is a non-null assertion: "I know this key exists."
-      // Prefer checking with `.has()` (as we do) before using `!`.
+      // `!` means "TypeScript, trust me — this key exists"
+      // (we already checked nextX.has(s.id)).
       idSet.has(s.id) && nextX.has(s.id)
         ? { ...s, x: nextX.get(s.id)! }
         : s,
     );
   }
 
+  // Vertical distribute — same algorithm on y/height.
   const sorted = [...targets].sort((a, b) => a.y - b.y);
   const first = sorted[0];
   const last = sorted[sorted.length - 1];
